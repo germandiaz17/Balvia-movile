@@ -1,0 +1,64 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/providers.dart';
+import '../../data/models/user.dart';
+
+enum AuthStatus { unknown, authenticated, unauthenticated }
+
+/// Auth state: a status plus the current user when authenticated.
+class AuthState {
+  const AuthState(this.status, [this.user]);
+  final AuthStatus status;
+  final User? user;
+}
+
+/// Owns the authentication lifecycle. On creation it bootstraps from stored
+/// tokens; exposes login/register/logout used by the UI.
+class AuthController extends Notifier<AuthState> {
+  @override
+  AuthState build() {
+    // Flip to logged-out if the API client reports an expired session.
+    ref.listen(sessionExpiredProvider, (_, _) {
+      state = const AuthState(AuthStatus.unauthenticated);
+    });
+    _bootstrap();
+    return const AuthState(AuthStatus.unknown);
+  }
+
+  Future<void> _bootstrap() async {
+    final token = await ref.read(tokenStorageProvider).accessToken();
+    if (token == null) {
+      state = const AuthState(AuthStatus.unauthenticated);
+      return;
+    }
+    try {
+      final user = await ref.read(authRepositoryProvider).me();
+      state = AuthState(AuthStatus.authenticated, user);
+    } catch (_) {
+      state = const AuthState(AuthStatus.unauthenticated);
+    }
+  }
+
+  Future<void> login(String email, String password) async {
+    final user = await ref
+        .read(authRepositoryProvider)
+        .login(email: email, password: password);
+    state = AuthState(AuthStatus.authenticated, user);
+  }
+
+  Future<void> register(String email, String password, String? fullName) async {
+    final user = await ref
+        .read(authRepositoryProvider)
+        .register(email: email, password: password, fullName: fullName);
+    state = AuthState(AuthStatus.authenticated, user);
+  }
+
+  Future<void> logout() async {
+    await ref.read(authRepositoryProvider).logout();
+    state = const AuthState(AuthStatus.unauthenticated);
+  }
+}
+
+final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);
