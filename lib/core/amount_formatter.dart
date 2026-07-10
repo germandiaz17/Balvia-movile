@@ -42,4 +42,14 @@ class AmountFormatter {
     if (d == null) throw ArgumentError('Amount must be positive');
     return d;
   }
+
+  /// Formats a Decimal as a COP display string: "$ 1.500.000".
+  /// Negative amounts render as "- $ 1.500.000". Fractional cents are
+  /// truncated (COP has no decimals in practice).
+  static String formatCOP(Decimal amount) {
+    final isNegative = amount < Decimal.zero;
+    final abs = isNegative ? -amount : amount;
+    final formatted = formatDisplay(abs.truncate().toBigInt().toString());
+    return isNegative ? '- \$ $formatted' : '\$ $formatted';
+  }
 }

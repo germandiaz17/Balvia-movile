@@ -7,6 +7,12 @@ import '../../data/models/account.dart';
 import '../auth/auth_controller.dart';
 import '../transactions/quick_capture_modal.dart';
 
+// Dashboard providers are invalidated here so the summary refreshes
+// immediately after a quick-capture save, even before the user navigates
+// to the Dashboard tab.
+// Providers: activeTrackingPeriodProvider, periodSummaryProvider,
+//            recentTransactionsProvider (all imported via core/providers.dart).
+
 /// Loads the user's accounts. autoDispose so it refetches when revisited.
 final accountsProvider = FutureProvider.autoDispose<List<Account>>(
   (ref) => ref.watch(accountRepositoryProvider).list(),
@@ -55,6 +61,11 @@ class HomeScreen extends ConsumerWidget {
                 );
                 if (saved && context.mounted) {
                   ref.invalidate(accountsProvider);
+                  // Dashboard providers must refresh: a new transaction
+                  // changes the period summary and recent list.
+                  ref.invalidate(activeTrackingPeriodProvider);
+                  ref.invalidate(periodSummaryProvider);
+                  ref.invalidate(recentTransactionsProvider);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Gasto registrado'),

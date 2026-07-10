@@ -3,6 +3,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:balvia_mobile/core/amount_formatter.dart';
 
 void main() {
+  group('AmountFormatter.formatCOP', () {
+    test('positive amount with separators', () {
+      expect(
+        AmountFormatter.formatCOP(Decimal.parse('1500000')),
+        r'$ 1.500.000',
+      );
+    });
+
+    test('negative amount', () {
+      expect(AmountFormatter.formatCOP(Decimal.parse('-50000')), r'- $ 50.000');
+    });
+
+    test('zero', () {
+      expect(AmountFormatter.formatCOP(Decimal.zero), r'$ 0');
+    });
+
+    test('truncates fractional cents', () {
+      expect(AmountFormatter.formatCOP(Decimal.parse('12000.99')), r'$ 12.000');
+    });
+  });
+
   group('AmountFormatter.formatDisplay', () {
     test('empty string returns "0"', () {
       expect(AmountFormatter.formatDisplay(''), '0');
