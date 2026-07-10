@@ -112,3 +112,17 @@ final recentTransactionsProvider =
         });
       return sorted.take(10).toList();
     });
+
+/// All transactions for the active tracking period, sorted newest-first.
+/// Used by the Movimientos screen. autoDispose so it refreshes on tab re-enter.
+final allTransactionsProvider =
+    FutureProvider.autoDispose<List<Transaction>>((ref) async {
+      final repo = ref.watch(transactionRepositoryProvider);
+      final all = await repo.list();
+      return List<Transaction>.from(all)
+        ..sort((a, b) {
+          final dateCmp = b.transactionDate.compareTo(a.transactionDate);
+          if (dateCmp != 0) return dateCmp;
+          return b.createdAt.compareTo(a.createdAt);
+        });
+    });

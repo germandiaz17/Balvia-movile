@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// Persistent bottom navigation shell wrapping Home and Dashboard.
+/// Persistent bottom navigation shell wrapping Home, Movimientos and Dashboard.
 /// go_router's StatefulShellRoute drives the branch switching.
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -26,6 +26,11 @@ class AppShell extends StatelessWidget {
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Inicio',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Movimientos',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
