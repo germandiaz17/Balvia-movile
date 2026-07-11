@@ -62,6 +62,13 @@ class ProfileScreen extends ConsumerWidget {
             title: 'Categorías',
             onTap: () => context.push('/categories'),
           ),
+          _ProfileTile(
+            iconColor: const Color(0xFF0F9D8C), // brand teal
+            iconBg: const Color(0xFFE0F2F1),
+            icon: Icons.bubble_chart_outlined,
+            title: 'Burbuja flotante',
+            onTap: () => context.push('/overlay-settings'),
+          ),
           _DisabledProfileTile(
             iconColor: const Color(0xFFFFA726), // amber
             iconBg: const Color(0xFFFFF3E0),

@@ -232,10 +232,20 @@ class AppDatabase extends _$AppDatabase {
 }
 
 /// Opens a connection to the app's SQLite file.
+/// WAL + busy_timeout are per-connection requirements for safe concurrent
+/// access with the overlay isolate (see overlay_database.dart): without the
+/// timeout here, a write from the bubble could surface as SQLITE_BUSY in the
+/// main app.
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File(p.join(dir.path, 'balvia.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      setup: (rawDb) {
+        rawDb.execute('PRAGMA journal_mode=WAL;');
+        rawDb.execute('PRAGMA busy_timeout=3000;');
+      },
+    );
   });
 }

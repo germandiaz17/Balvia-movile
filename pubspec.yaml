@@ -52,6 +52,11 @@ dependencies:
   # Persistence of non-sensitive settings (e.g. theme mode preference).
   shared_preferences: ^2.3.5
 
+  # System overlay ("floating bubble") — Android SYSTEM_ALERT_WINDOW.
+  # The overlay runs in a separate FlutterEngine/isolate; data access goes
+  # through a dedicated Drift WAL connection to the same SQLite file.
+  flutter_overlay_window: ^0.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- SYSTEM_ALERT_WINDOW: required for the floating bubble overlay. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <!-- FOREGROUND_SERVICE: keeps the overlay alive when the app is in background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <!-- usesCleartextTraffic: dev-only, the backend runs over plain HTTP on the
          LAN. Replace with HTTPS (and drop this flag) once the API is deployed. -->
     <application
@@ -29,6 +33,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- Overlay foreground service provided by flutter_overlay_window. -->
+        <service
+            android:name="com.example.flutter_overlay_window.OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection"
+            android:permission="android.permission.FOREGROUND_SERVICE"/>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

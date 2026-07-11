@@ -5,6 +5,11 @@ import 'core/router.dart';
 import 'core/theme.dart';
 import 'core/theme_mode_provider.dart';
 
+// Secondary entry-point for the overlay FlutterEngine.
+// Imported here so the @pragma("vm:entry-point") annotation is visible to
+// the tree-shaker (the function is called from the Android side by name).
+import 'features/overlay/overlay_entry.dart'; // ignore: unused_import
+
 void main() {
   runApp(const ProviderScope(child: BalviaApp()));
 }

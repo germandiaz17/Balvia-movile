@@ -10,6 +10,7 @@ import '../features/auth/splash_screen.dart';
 import '../features/budgets/budgets_screen.dart';
 import '../features/categories/categories_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/overlay/overlay_settings_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/transactions/transactions_screen.dart';
@@ -58,6 +59,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Push routes (displayed on top of the shell, no bottom nav).
       GoRoute(path: '/categories', builder: (_, _) => const CategoriesScreen()),
       GoRoute(path: '/accounts', builder: (_, _) => const AccountsScreen()),
+      GoRoute(
+        path: '/overlay-settings',
+        builder: (_, _) => const OverlaySettingsScreen(),
+      ),
       // Dashboard is accessed through the shell at /home (Tab 0 replaces
       // the old /dashboard). The old route is kept for backward compat.
       GoRoute(path: '/dashboard', builder: (_, _) => const HomeScreen()),
