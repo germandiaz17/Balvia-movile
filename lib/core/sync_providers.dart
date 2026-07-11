@@ -69,11 +69,12 @@ final localCategoriesProvider = StreamProvider<List<Category>>(
 
 /// Active tracking period read from Drift. Falls back to network if the local
 /// DB has no period yet (first launch before the first pull).
-final localActiveTrackingPeriodProvider =
-    StreamProvider<model.TrackingPeriod?>((ref) {
-  // Convert Drift TrackingPeriod rows to domain TrackingPeriod.
-  return ref.watch(appDatabaseProvider).trackingPeriodsDao.watchActive().map(
-    (row) {
+final localActiveTrackingPeriodProvider = StreamProvider<model.TrackingPeriod?>(
+  (ref) {
+    // Convert Drift TrackingPeriod rows to domain TrackingPeriod.
+    return ref.watch(appDatabaseProvider).trackingPeriodsDao.watchActive().map((
+      row,
+    ) {
       if (row == null) return null;
       return model.TrackingPeriod(
         id: row.id,
@@ -85,9 +86,9 @@ final localActiveTrackingPeriodProvider =
         configDurationDays: row.configDurationDays,
         closedAt: row.closedAt != null ? DateTime.parse(row.closedAt!) : null,
       );
-    },
-  );
-});
+    });
+  },
+);
 
 /// Stream of transactions for the active period from Drift.
 /// Replaces allTransactionsProvider and recentTransactionsProvider.
@@ -114,9 +115,7 @@ final localTransactionsProvider = StreamProvider<List<Transaction>>((
     return;
   }
 
-  yield* ref
-      .watch(localTransactionRepoProvider)
-      .watchByPeriod(periodId);
+  yield* ref.watch(localTransactionRepoProvider).watchByPeriod(periodId);
 });
 
 /// Recent transactions (last 10) from Drift — for the home dashboard widget.

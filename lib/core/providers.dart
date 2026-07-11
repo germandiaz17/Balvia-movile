@@ -9,9 +9,11 @@ import '../data/models/tracking_period.dart';
 import '../data/models/transaction.dart';
 import '../data/repositories/account_repository.dart';
 import '../data/repositories/auth_repository.dart';
+import '../data/repositories/budget_repository.dart';
 import '../data/repositories/category_repository.dart';
 import '../data/repositories/tracking_period_repository.dart';
 import '../data/repositories/transaction_repository.dart';
+import '../data/models/budget.dart';
 
 /// Bumped by the API client when a session expires (refresh failed). The auth
 /// controller listens to this to flip to logged-out — keeps infra decoupled
@@ -56,6 +58,10 @@ final transactionRepositoryProvider = Provider<TransactionRepository>(
 
 final trackingPeriodRepositoryProvider = Provider<TrackingPeriodRepository>(
   (ref) => TrackingPeriodRepository(ref.watch(dioProvider)),
+);
+
+final budgetRepositoryProvider = Provider<BudgetRepository>(
+  (ref) => BudgetRepository(ref.watch(dioProvider)),
 );
 
 /// Categories are cached for the session (not autoDispose).
@@ -115,14 +121,19 @@ final recentTransactionsProvider =
 
 /// All transactions for the active tracking period, sorted newest-first.
 /// Used by the Movimientos screen. autoDispose so it refreshes on tab re-enter.
-final allTransactionsProvider =
-    FutureProvider.autoDispose<List<Transaction>>((ref) async {
-      final repo = ref.watch(transactionRepositoryProvider);
-      final all = await repo.list();
-      return List<Transaction>.from(all)
-        ..sort((a, b) {
-          final dateCmp = b.transactionDate.compareTo(a.transactionDate);
-          if (dateCmp != 0) return dateCmp;
-          return b.createdAt.compareTo(a.createdAt);
-        });
-    });
+final allTransactionsProvider = FutureProvider.autoDispose<List<Transaction>>((
+  ref,
+) async {
+  final repo = ref.watch(transactionRepositoryProvider);
+  final all = await repo.list();
+  return List<Transaction>.from(all)..sort((a, b) {
+    final dateCmp = b.transactionDate.compareTo(a.transactionDate);
+    if (dateCmp != 0) return dateCmp;
+    return b.createdAt.compareTo(a.createdAt);
+  });
+});
+
+/// Budgets for the active period. autoDispose so it refreshes on tab re-enter.
+final budgetsProvider = FutureProvider.autoDispose<List<Budget>>(
+  (ref) => ref.watch(budgetRepositoryProvider).list(),
+);

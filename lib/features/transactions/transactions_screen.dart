@@ -6,9 +6,11 @@ import 'package:go_router/go_router.dart';
 import '../../core/amount_formatter.dart';
 import '../../core/api_error.dart';
 import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../data/models/account.dart';
 import '../../data/models/category.dart';
 import '../../data/models/transaction.dart';
+import '../../shared/category_avatar.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,8 +114,7 @@ class TransactionsScreen extends ConsumerWidget {
               return const _EmptyBody();
             }
 
-            final categories =
-                categoriesAsync.value ?? const <Category>[];
+            final categories = categoriesAsync.value ?? const <Category>[];
             final accounts = accountsAsync.value ?? const <Account>[];
             final grouped = _groupByDay(txs);
             final dates = grouped.keys.toList();
@@ -158,7 +159,8 @@ class TransactionsScreen extends ConsumerWidget {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditTransactionSheet(transaction: tx, accounts: accounts),
+      builder: (_) =>
+          _EditTransactionSheet(transaction: tx, accounts: accounts),
     ).then((saved) {
       if (saved == true) {
         _invalidateAfterMutation(ref);
@@ -238,9 +240,10 @@ class TransactionsScreen extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 /// Cached accounts list shared between the Movimientos tab and the edit sheet.
-final accountsForTransactionsProvider = FutureProvider.autoDispose<List<Account>>(
-  (ref) => ref.watch(accountRepositoryProvider).list(),
-);
+final accountsForTransactionsProvider =
+    FutureProvider.autoDispose<List<Account>>(
+      (ref) => ref.watch(accountRepositoryProvider).list(),
+    );
 
 // ---------------------------------------------------------------------------
 // Day section
@@ -277,7 +280,9 @@ class _DaySection extends StatelessWidget {
         dayNet -= tx.amount;
       }
     }
-    final netColor = dayNet >= Decimal.zero ? cs.primary : cs.error;
+    final netColor = dayNet >= Decimal.zero
+        ? BalviaTheme.income
+        : BalviaTheme.expense;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -388,34 +393,20 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
 
-    final isExpense = tx.transactionType == 'expense';
-    final isTransfer = tx.transactionType == 'transfer';
-    final amountColor = isExpense
-        ? cs.error
-        : isTransfer
-        ? cs.secondary
-        : cs.primary;
-    final sign = isExpense ? '-' : isTransfer ? '' : '+';
+    final amountColor = BalviaTheme.colorForType(tx.transactionType);
+    final sign = BalviaTheme.signForType(tx.transactionType);
+
+    // Resolve category and account objects for CategoryAvatar.
+    final category = tx.categoryId != null
+        ? categories.where((c) => c.id == tx.categoryId).firstOrNull
+        : null;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       child: ListTile(
         onTap: onTap,
-        leading: CircleAvatar(
-          radius: 18,
-          backgroundColor: amountColor.withValues(alpha: 0.15),
-          child: Icon(
-            isExpense
-                ? Icons.arrow_upward
-                : isTransfer
-                ? Icons.swap_horiz
-                : Icons.arrow_downward,
-            size: 16,
-            color: amountColor,
-          ),
-        ),
+        leading: CategoryAvatar(category: category, radius: 18),
         title: Text(
           tx.description ?? _typeLabel(tx.transactionType),
           maxLines: 1,
@@ -429,7 +420,7 @@ class _TransactionTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         trailing: Text(
-          '$sign ${AmountFormatter.formatCOP(tx.amount)}',
+          '$sign${AmountFormatter.formatCOP(tx.amount)}',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: amountColor,
             fontWeight: FontWeight.bold,
@@ -588,9 +579,7 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                 selected: {_transactionType},
                 onSelectionChanged: (s) =>
                     setState(() => _transactionType = s.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
               ),
               const SizedBox(height: 12),
             ] else
@@ -647,24 +636,24 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
               ),
               error: (e, s) => const SizedBox.shrink(),
               data: (all) {
-                final filtered = all
-                    .where(
-                      (c) =>
-                          c.categoryType == _transactionType &&
-                          c.parentId == null,
-                    )
-                    .toList()
-                  ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+                final filtered =
+                    all
+                        .where(
+                          (c) =>
+                              c.categoryType == _transactionType &&
+                              c.parentId == null,
+                        )
+                        .toList()
+                      ..sort(
+                        (a, b) => a.displayOrder.compareTo(b.displayOrder),
+                      );
 
                 if (filtered.isEmpty) return const SizedBox.shrink();
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Categoría',
-                      style: theme.textTheme.labelMedium,
-                    ),
+                    Text('Categoría', style: theme.textTheme.labelMedium),
                     const SizedBox(height: 6),
                     SizedBox(
                       height: 40,
@@ -678,8 +667,9 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                           final selected = cat.id == _selectedCategoryId;
                           return GestureDetector(
                             onTap: () => setState(
-                              () => _selectedCategoryId =
-                                  selected ? null : cat.id,
+                              () => _selectedCategoryId = selected
+                                  ? null
+                                  : cat.id,
                             ),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 120),
@@ -693,10 +683,7 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                                     : cs.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(20),
                                 border: selected
-                                    ? Border.all(
-                                        color: cs.primary,
-                                        width: 1.5,
-                                      )
+                                    ? Border.all(color: cs.primary, width: 1.5)
                                     : null,
                               ),
                               child: Text(

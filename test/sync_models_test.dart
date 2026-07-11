@@ -126,10 +126,7 @@ void main() {
         trackingPeriods: const [],
       );
       // oldest of (10:00, 08:00, 12:00) is 08:00
-      expect(
-        pull.oldestLastUpdatedAt(),
-        '2026-07-09T08:00:00Z',
-      );
+      expect(pull.oldestLastUpdatedAt(), '2026-07-09T08:00:00Z');
     });
 
     test('returns single value when only one collection is non-empty', () {
@@ -239,7 +236,10 @@ void main() {
       final json = {
         'client_ref': 'op-1',
         'status': 'skipped',
-        'server_entity': {'id': 'existing-id', 'updated_at': '2026-07-09T10:00:00Z'},
+        'server_entity': {
+          'id': 'existing-id',
+          'updated_at': '2026-07-09T10:00:00Z',
+        },
         'error': null,
       };
       final result = PushItemResult.fromJson(json);

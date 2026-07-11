@@ -11,14 +11,14 @@ import '../../data/models/account.dart';
 
 /// Converts a Drift [db.Account] row to the domain [Account].
 Account _accountRowToModel(db.Account row) => Account(
-      id: row.id,
-      name: row.name,
-      accountType: row.accountType,
-      currency: row.currency,
-      currentBalance: Decimal.parse(row.currentBalance),
-      icon: row.icon,
-      color: row.color,
-    );
+  id: row.id,
+  name: row.name,
+  accountType: row.accountType,
+  currency: row.currency,
+  currentBalance: Decimal.parse(row.currentBalance),
+  icon: row.icon,
+  color: row.color,
+);
 
 class LocalAccountRepository {
   LocalAccountRepository(this._db);
@@ -26,10 +26,9 @@ class LocalAccountRepository {
   final db.AppDatabase _db;
 
   /// Stream of all non-archived, non-deleted accounts (offline-first).
-  Stream<List<Account>> watchAll() =>
-      _db.accountsDao.watchAll().map(
-        (rows) => rows.map(_accountRowToModel).toList(),
-      );
+  Stream<List<Account>> watchAll() => _db.accountsDao.watchAll().map(
+    (rows) => rows.map(_accountRowToModel).toList(),
+  );
 
   /// One-shot list of accounts.
   Future<List<Account>> getAll() async {

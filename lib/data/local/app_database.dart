@@ -85,17 +85,19 @@ class TransactionsDao extends DatabaseAccessor<AppDatabase>
     // If the server assigned a different id (rare for creates via client_id),
     // we replace the row.
     if (localId != serverId) {
-      final existing = await (select(transactions)
-            ..where((t) => t.id.equals(localId)))
-          .getSingleOrNull();
+      final existing = await (select(
+        transactions,
+      )..where((t) => t.id.equals(localId))).getSingleOrNull();
       if (existing != null) {
         await (delete(transactions)..where((t) => t.id.equals(localId))).go();
         await upsert(
-          existing.toCompanion(true).copyWith(
-            id: Value(serverId),
-            syncStatus: const Value('synced'),
-            updatedAt: Value(updatedAt),
-          ),
+          existing
+              .toCompanion(true)
+              .copyWith(
+                id: Value(serverId),
+                syncStatus: const Value('synced'),
+                updatedAt: Value(updatedAt),
+              ),
         );
         return;
       }
@@ -171,16 +173,12 @@ class TrackingPeriodsDao extends DatabaseAccessor<AppDatabase>
 
   Future<TrackingPeriod?> getActive() =>
       (select(trackingPeriods)
-            ..where(
-              (t) => t.status.equals('active') & t.deletedAt.isNull(),
-            ))
+            ..where((t) => t.status.equals('active') & t.deletedAt.isNull()))
           .getSingleOrNull();
 
   Stream<TrackingPeriod?> watchActive() =>
       (select(trackingPeriods)
-            ..where(
-              (t) => t.status.equals('active') & t.deletedAt.isNull(),
-            ))
+            ..where((t) => t.status.equals('active') & t.deletedAt.isNull()))
           .watchSingleOrNull();
 }
 

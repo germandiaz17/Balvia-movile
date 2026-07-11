@@ -96,7 +96,10 @@ void main() {
       final out = tx.toJson();
       expect(out['created_at'], isA<String>());
       // Must be parseable as a DateTime.
-      expect(() => DateTime.parse(out['created_at'] as String), returnsNormally);
+      expect(
+        () => DateTime.parse(out['created_at'] as String),
+        returnsNormally,
+      );
     });
 
     test('large COP amount preserves precision', () {
@@ -116,8 +119,7 @@ void main() {
     });
 
     test('amount with cents parses correctly', () {
-      final json = Map<String, dynamic>.from(baseJson)
-        ..['amount'] = '12345.50';
+      final json = Map<String, dynamic>.from(baseJson)..['amount'] = '12345.50';
       final tx = Transaction.fromJson(json);
       expect(tx.amount, Decimal.parse('12345.50'));
     });

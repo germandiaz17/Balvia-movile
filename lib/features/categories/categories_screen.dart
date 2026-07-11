@@ -137,7 +137,9 @@ class CategoriesScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar categoría'),
-        content: Text('¿Eliminar "${cat.name}"? Esta acción no se puede deshacer.'),
+        content: Text(
+          '¿Eliminar "${cat.name}"? Esta acción no se puede deshacer.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -272,11 +274,7 @@ class _CategoryTile extends StatelessWidget {
                   ),
                   IconButton(
                     tooltip: 'Eliminar',
-                    icon: Icon(
-                      Icons.delete_outline,
-                      size: 18,
-                      color: cs.error,
-                    ),
+                    icon: Icon(Icons.delete_outline, size: 18, color: cs.error),
                     onPressed: onDelete,
                   ),
                 ],
@@ -291,7 +289,12 @@ class _CategoryTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 typedef _SaveCallback =
-    Future<void> Function(String name, String type, String? icon, String? color);
+    Future<void> Function(
+      String name,
+      String type,
+      String? icon,
+      String? color,
+    );
 
 class _CategoryFormSheet extends StatefulWidget {
   const _CategoryFormSheet({
@@ -421,9 +424,7 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                 ],
                 selected: {_type},
                 onSelectionChanged: (s) => setState(() => _type = s.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
               ),
               const SizedBox(height: 12),
             ],
@@ -445,7 +446,9 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                       width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(widget.editMode ? 'Guardar cambios' : 'Crear categoría'),
+                  : Text(
+                      widget.editMode ? 'Guardar cambios' : 'Crear categoría',
+                    ),
             ),
           ],
         ),

@@ -2,16 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_error.dart';
+import '../../core/amount_formatter.dart';
 import '../../core/providers.dart';
 import '../../data/models/account.dart';
+import '../../shared/sync_status_icon.dart';
 import '../auth/auth_controller.dart';
-import '../transactions/quick_capture_modal.dart';
-
-// Dashboard providers are invalidated here so the summary refreshes
-// immediately after a quick-capture save, even before the user navigates
-// to the Dashboard tab.
-// Providers: activeTrackingPeriodProvider, periodSummaryProvider,
-//            recentTransactionsProvider (all imported via core/providers.dart).
 
 /// Loads the user's accounts. autoDispose so it refetches when revisited.
 final accountsProvider = FutureProvider.autoDispose<List<Account>>(
@@ -30,68 +25,25 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Balvia'),
         actions: [
-          IconButton(
-            tooltip: 'Cerrar sesión',
-            icon: const Icon(Icons.logout),
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+          // Sync status indicator — shows nube/pending/offline.
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: SyncStatusIcon(),
           ),
         ],
       ),
-      floatingActionButton: accounts.maybeWhen(
-        data: (items) => Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Secondary: add account (small FAB).
-            FloatingActionButton.small(
-              heroTag: 'fab_add_account',
-              tooltip: 'Nueva cuenta',
-              onPressed: () => _showAddAccount(context, ref),
-              child: const Icon(Icons.account_balance_wallet_outlined),
-            ),
-            const SizedBox(height: 12),
-            // Primary: quick expense capture (large, prominent).
-            FloatingActionButton.extended(
-              heroTag: 'fab_quick_capture',
-              onPressed: () async {
-                final saved = await showQuickCaptureModal(
-                  context,
-                  ref,
-                  accounts: items,
-                );
-                if (saved && context.mounted) {
-                  ref.invalidate(accountsProvider);
-                  // Dashboard providers must refresh: a new transaction
-                  // changes the period summary and recent list.
-                  ref.invalidate(activeTrackingPeriodProvider);
-                  ref.invalidate(periodSummaryProvider);
-                  ref.invalidate(recentTransactionsProvider);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Gasto registrado'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Gasto'),
-            ),
-          ],
-        ),
-        orElse: () => FloatingActionButton.extended(
-          heroTag: 'fab_add_account_fallback',
-          onPressed: () => _showAddAccount(context, ref),
-          icon: const Icon(Icons.add),
-          label: const Text('Cuenta'),
-        ),
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: 'fab_add_account_home',
+        tooltip: 'Nueva cuenta',
+        onPressed: () => _showAddAccount(context, ref),
+        child: const Icon(Icons.account_balance_wallet_outlined),
       ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(accountsProvider),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Greeting.
             Text(
               'Hola${user?.fullName != null ? ', ${user!.fullName}' : ''} 👋',
               style: Theme.of(context).textTheme.headlineSmall,
@@ -99,7 +51,32 @@ class HomeScreen extends ConsumerWidget {
             if (user != null)
               Text(user.email, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 24),
-            Text('Tus cuentas', style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Text(
+                  'Tus cuentas',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const Spacer(),
+                accounts.maybeWhen(
+                  data: (items) {
+                    if (items.isEmpty) return const SizedBox.shrink();
+                    // Consolidated total.
+                    final total = items.fold(
+                      AmountFormatter.toDecimal('0') ?? _zero,
+                      (sum, a) => sum + a.currentBalance,
+                    );
+                    return Text(
+                      AmountFormatter.formatCOP(total),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  },
+                  orElse: () => const SizedBox.shrink(),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             accounts.when(
               loading: () => const Padding(
@@ -114,14 +91,26 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
               data: (items) => items.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Text(
-                        'Aún no tienes cuentas. Crea la primera con el botón +.',
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Aún no tienes cuentas. Crea la primera con el botón +.',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: () => _showAddAccount(context, ref),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Nueva cuenta'),
+                          ),
+                        ],
                       ),
                     )
                   : Column(children: items.map(_AccountTile.new).toList()),
             ),
+            const SizedBox(height: 80), // padding for the FAB
           ],
         ),
       ),
@@ -136,22 +125,42 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
+// ignore: non_constant_identifier_names
+final _zero =
+    AmountFormatter.toDecimal('0') ??
+    // Fallback — can't be null but satisfies the compiler.
+    (throw StateError('Decimal zero failed'));
+
 class _AccountTile extends StatelessWidget {
   const _AccountTile(this.account);
   final Account account;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isNegative =
+        account.currentBalance < (AmountFormatter.toDecimal('0') ?? _zero);
+
     return Card(
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.account_balance_wallet)),
+        leading: CircleAvatar(
+          backgroundColor: cs.primaryContainer,
+          child: Icon(
+            _accountIcon(account.accountType),
+            color: cs.onPrimaryContainer,
+            size: 20,
+          ),
+        ),
         title: Text(account.name),
         subtitle: Text(_typeLabel(account.accountType)),
         trailing: Text(
-          '${account.currency} ${account.currentBalance.toStringAsFixed(2)}',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          AmountFormatter.formatCOP(account.currentBalance),
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: isNegative ? cs.error : cs.onSurface,
+          ),
         ),
       ),
     );
@@ -168,6 +177,15 @@ const _accountTypes = {
 };
 
 String _typeLabel(String type) => _accountTypes[type] ?? type;
+
+IconData _accountIcon(String type) => switch (type) {
+  'cash' => Icons.payments_outlined,
+  'checking' => Icons.account_balance_outlined,
+  'savings' => Icons.savings_outlined,
+  'credit_card' => Icons.credit_card_outlined,
+  'investment' => Icons.trending_up_outlined,
+  _ => Icons.account_balance_wallet_outlined,
+};
 
 class _AddAccountDialog extends ConsumerStatefulWidget {
   const _AddAccountDialog();
@@ -243,7 +261,10 @@ class _AddAccountDialogState extends ConsumerState<_AddAccountDialog> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Saldo inicial'),
+              decoration: const InputDecoration(
+                labelText: 'Saldo inicial',
+                helperText: 'El saldo solo cambia con transacciones después.',
+              ),
               validator: (v) => (v == null || double.tryParse(v) == null)
                   ? 'Número inválido'
                   : null,

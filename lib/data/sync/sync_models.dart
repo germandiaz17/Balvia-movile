@@ -39,9 +39,7 @@ class PullResponse {
     List<Map<String, dynamic>> extractList(String key) {
       final raw = json[key];
       if (raw == null) return const [];
-      return (raw as List)
-          .map((e) => e as Map<String, dynamic>)
-          .toList();
+      return (raw as List).map((e) => e as Map<String, dynamic>).toList();
     }
 
     return PullResponse(
@@ -142,13 +140,12 @@ class PushItemResult {
   /// Human-readable error; present for rejected.
   final String? error;
 
-  factory PushItemResult.fromJson(Map<String, dynamic> json) =>
-      PushItemResult(
-        clientRef: json['client_ref'] as String,
-        status: json['status'] as String,
-        serverEntity: json['server_entity'] as Map<String, dynamic>?,
-        error: json['error'] as String?,
-      );
+  factory PushItemResult.fromJson(Map<String, dynamic> json) => PushItemResult(
+    clientRef: json['client_ref'] as String,
+    status: json['status'] as String,
+    serverEntity: json['server_entity'] as Map<String, dynamic>?,
+    error: json['error'] as String?,
+  );
 }
 
 /// Full response from POST /sync/push.

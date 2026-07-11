@@ -45,8 +45,7 @@ class TrackingPeriods extends Table {
   TextColumn get status => text()();
 
   IntColumn get configStartDay => integer().named('config_start_day')();
-  IntColumn get configDurationDays =>
-      integer().named('config_duration_days')();
+  IntColumn get configDurationDays => integer().named('config_duration_days')();
 
   // RFC3339 nullable — null when active.
   TextColumn get closedAt => text().named('closed_at').nullable()();
@@ -79,7 +78,8 @@ class Accounts extends Table {
 
   TextColumn get icon => text().nullable()();
   TextColumn get color => text().nullable()();
-  IntColumn get displayOrder => integer().named('display_order').withDefault(const Constant(0))();
+  IntColumn get displayOrder =>
+      integer().named('display_order').withDefault(const Constant(0))();
   BoolColumn get isArchived =>
       boolean().named('is_archived').withDefault(const Constant(false))();
 

@@ -5,19 +5,25 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/budgets/budgets_screen.dart';
 import '../features/categories/categories_screen.dart';
-import '../features/dashboard/dashboard_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/profile/profile_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/transactions/transactions_screen.dart';
 
 /// App router. Redirects based on auth status; refreshes whenever it changes.
-/// After authentication the user lands on the three-tab shell:
-///   /home          → Inicio (accounts + quick capture)
-///   /transactions  → Movimientos (full transaction list for active period)
-///   /dashboard     → Seguimiento (active tracking period summary)
 ///
-/// Category management lives at /categories (pushed on top of Movimientos).
+/// Shell principal (4 tabs + central FAB, design brief §4):
+///   /home          → Tab 0: Inicio (dashboard + accounts + quick capture)
+///   /transactions  → Tab 1: Transacciones (full transaction list)
+///   [FAB]          → Captura rápida (modal, no tab)
+///   /budgets       → Tab 2: Presupuestos
+///   /profile       → Tab 3: Perfil/Más
+///
+/// Push routes (no bottom nav):
+///   /categories    → Gestión de categorías (from Profile or Transactions)
+///   /accounts      → Gestión de cuentas (from Profile)
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.onDispose(refresh.dispose);
@@ -47,23 +53,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
 
-      // Category management — pushed on top of the shell (no bottom nav).
-      GoRoute(
-        path: '/categories',
-        builder: (_, _) => const CategoriesScreen(),
-      ),
+      // Push routes (displayed on top of the shell, no bottom nav).
+      GoRoute(path: '/categories', builder: (_, _) => const CategoriesScreen()),
+      GoRoute(path: '/accounts', builder: (_, _) => const _AccountsPage()),
+      // Dashboard is accessed through the shell at /home (Tab 0 replaces
+      // the old /dashboard). The old route is kept for backward compat.
+      GoRoute(path: '/dashboard', builder: (_, _) => const HomeScreen()),
 
-      // Three-tab shell: Home, Movimientos, and Dashboard share a persistent
-      // bottom nav bar.
+      // Four-tab shell: Inicio, Transacciones, Presupuestos, Perfil.
+      // The central FAB lives in AppShell (not a branch).
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
         branches: [
+          // Tab 0 — Inicio
           StatefulShellBranch(
             routes: [
               GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
             ],
           ),
+          // Tab 1 — Transacciones
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -72,11 +81,21 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
+          // Tab 2 — Presupuestos
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/dashboard',
-                builder: (_, _) => const DashboardScreen(),
+                path: '/budgets',
+                builder: (_, _) => const BudgetsScreen(),
+              ),
+            ],
+          ),
+          // Tab 3 — Perfil/Más
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (_, _) => const ProfileScreen(),
               ),
             ],
           ),
@@ -91,4 +110,15 @@ class _Splash extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Scaffold(body: Center(child: CircularProgressIndicator()));
+}
+
+/// Thin wrapper: re-uses the existing HomeScreen account management UI.
+/// Full accounts screen (design brief §5.8) is a post-MVP task.
+class _AccountsPage extends StatelessWidget {
+  const _AccountsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const HomeScreen();
+  }
 }

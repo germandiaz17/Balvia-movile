@@ -21,22 +21,22 @@ import '../../data/models/transaction.dart';
 
 /// Converts a Drift [db.Transaction] row to the domain [Transaction].
 Transaction _rowToModel(db.Transaction row) => Transaction(
-      id: row.id,
-      trackingPeriodId: row.trackingPeriodId,
-      accountId: row.accountId,
-      transactionType: row.transactionType,
-      amount: Decimal.parse(row.amount),
-      currency: row.currency,
-      transactionDate: row.transactionDate,
-      createdAt: DateTime.parse(row.createdAt),
-      categoryId: row.categoryId,
-      description: row.description,
-      notes: row.notes,
-      transferAccountId: row.transferAccountId,
-      clientId: row.clientId,
-      recurringTransactionId: row.recurringTransactionId,
-      occurrenceDate: row.occurrenceDate,
-    );
+  id: row.id,
+  trackingPeriodId: row.trackingPeriodId,
+  accountId: row.accountId,
+  transactionType: row.transactionType,
+  amount: Decimal.parse(row.amount),
+  currency: row.currency,
+  transactionDate: row.transactionDate,
+  createdAt: DateTime.parse(row.createdAt),
+  categoryId: row.categoryId,
+  description: row.description,
+  notes: row.notes,
+  transferAccountId: row.transferAccountId,
+  clientId: row.clientId,
+  recurringTransactionId: row.recurringTransactionId,
+  occurrenceDate: row.occurrenceDate,
+);
 
 // ---------------------------------------------------------------------------
 // LocalTransactionRepository
@@ -53,10 +53,10 @@ class LocalTransactionRepository {
 
   /// Stream of all non-deleted transactions for [trackingPeriodId], sorted
   /// newest first. Use this in providers via StreamProvider.
-  Stream<List<Transaction>> watchByPeriod(String trackingPeriodId) =>
-      _db.transactionsDao
-          .watchByPeriod(trackingPeriodId)
-          .map((rows) => rows.map(_rowToModel).toList());
+  Stream<List<Transaction>> watchByPeriod(String trackingPeriodId) => _db
+      .transactionsDao
+      .watchByPeriod(trackingPeriodId)
+      .map((rows) => rows.map(_rowToModel).toList());
 
   /// One-shot query (for contexts that cannot use a stream).
   Future<List<Transaction>> getByPeriod(String trackingPeriodId) async {
@@ -84,7 +84,8 @@ class LocalTransactionRepository {
     String userId = '',
   }) async {
     final now = DateTime.now().toUtc().toIso8601String();
-    final date = transactionDate ??
+    final date =
+        transactionDate ??
         DateTime.now().toIso8601String().substring(0, 10); // YYYY-MM-DD
 
     final localId = generateLocalId();
@@ -111,9 +112,9 @@ class LocalTransactionRepository {
 
     await _db.transactionsDao.upsert(companion);
 
-    final row = await (
-      _db.select(_db.transactions)..where((t) => t.id.equals(localId))
-    ).getSingle();
+    final row = await (_db.select(
+      _db.transactions,
+    )..where((t) => t.id.equals(localId))).getSingle();
     return _rowToModel(row);
   }
 
@@ -131,9 +132,7 @@ class LocalTransactionRepository {
     String? transferAccountId,
   }) async {
     final now = DateTime.now().toUtc().toIso8601String();
-    await (
-      _db.update(_db.transactions)..where((t) => t.id.equals(id))
-    ).write(
+    await (_db.update(_db.transactions)..where((t) => t.id.equals(id))).write(
       db.TransactionsCompanion(
         accountId: Value(accountId),
         transactionType: Value(transactionType),
@@ -151,9 +150,9 @@ class LocalTransactionRepository {
       ),
     );
 
-    final row = await (
-      _db.select(_db.transactions)..where((t) => t.id.equals(id))
-    ).getSingle();
+    final row = await (_db.select(
+      _db.transactions,
+    )..where((t) => t.id.equals(id))).getSingle();
     return _rowToModel(row);
   }
 

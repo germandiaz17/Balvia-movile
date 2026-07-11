@@ -5,9 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/amount_formatter.dart';
 import '../../core/api_error.dart';
 import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../data/models/period_summary.dart';
-import '../../data/models/tracking_period.dart';
 import '../../data/models/transaction.dart';
+import '../../shared/period_header.dart';
 
 /// Formats a YYYY-MM-DD string as "4 jul. 2026" (es-CO abbreviated).
 String _formatDate(String yyyyMmDd) {
@@ -60,11 +61,11 @@ class DashboardScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Period header.
+            // Period header (shared component).
             periodAsync.when(
               loading: () => const _SectionSkeleton(height: 120),
               error: (e, _) => _ErrorCard(message: apiErrorMessage(e)),
-              data: (period) => _PeriodHeader(period: period),
+              data: (period) => PeriodHeader(period: period),
             ),
             const SizedBox(height: 16),
 
@@ -139,107 +140,6 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Period header
-// ---------------------------------------------------------------------------
-
-class _PeriodHeader extends StatelessWidget {
-  const _PeriodHeader({required this.period});
-  final TrackingPeriod period;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Period number badge + status.
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Seguimiento #${period.sequenceNumber}',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (period.isActive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cs.secondaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Activo',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: cs.onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // Date range.
-            Text(
-              '${_formatDate(period.startDate)} – ${_formatDate(period.endDate)}',
-              style: theme.textTheme.titleSmall,
-            ),
-            const SizedBox(height: 12),
-
-            // Progress bar.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: period.progressFraction,
-                minHeight: 8,
-                backgroundColor: cs.surfaceContainerHighest,
-                color: cs.primary,
-              ),
-            ),
-            const SizedBox(height: 6),
-
-            // Day counters.
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Día ${period.daysElapsed} de ${period.durationDays}',
-                  style: theme.textTheme.bodySmall,
-                ),
-                Text(
-                  '${period.daysRemaining} días restantes',
-                  style: theme.textTheme.bodySmall?.copyWith(color: cs.primary),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // View selector (Completa / Quincenal / Semanal)
 // ---------------------------------------------------------------------------
 
@@ -295,7 +195,9 @@ class _SummaryCard extends StatelessWidget {
             Text(
               AmountFormatter.formatCOP(summary.netSavings),
               style: theme.textTheme.headlineMedium?.copyWith(
-                color: savingsPositive ? cs.primary : cs.error,
+                color: savingsPositive
+                    ? BalviaTheme.income
+                    : BalviaTheme.expense,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -316,7 +218,7 @@ class _SummaryCard extends StatelessWidget {
                   child: _MetricCell(
                     label: 'Ingresos',
                     amount: summary.totalIncome,
-                    color: cs.primary,
+                    color: BalviaTheme.income,
                     icon: Icons.arrow_downward,
                   ),
                 ),
@@ -325,7 +227,7 @@ class _SummaryCard extends StatelessWidget {
                   child: _MetricCell(
                     label: 'Gastos',
                     amount: summary.totalExpenses,
-                    color: cs.error,
+                    color: BalviaTheme.expense,
                     icon: Icons.arrow_upward,
                   ),
                 ),
@@ -524,21 +426,10 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
 
-    final isExpense = tx.transactionType == 'expense';
-    final isTransfer = tx.transactionType == 'transfer';
-    final amountColor = isExpense
-        ? cs.error
-        : isTransfer
-        ? cs.secondary
-        : cs.primary;
-    final sign = isExpense
-        ? '-'
-        : isTransfer
-        ? ''
-        : '+';
-    final amountText = '$sign ${AmountFormatter.formatCOP(tx.amount)}';
+    final amountColor = BalviaTheme.colorForType(tx.transactionType);
+    final sign = BalviaTheme.signForType(tx.transactionType);
+    final amountText = '$sign${AmountFormatter.formatCOP(tx.amount)}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
@@ -548,11 +439,11 @@ class _TransactionTile extends StatelessWidget {
           radius: 18,
           backgroundColor: amountColor.withValues(alpha: 0.15),
           child: Icon(
-            isExpense
-                ? Icons.arrow_upward
-                : isTransfer
+            tx.transactionType == 'income'
+                ? Icons.arrow_downward
+                : tx.transactionType == 'transfer'
                 ? Icons.swap_horiz
-                : Icons.arrow_downward,
+                : Icons.arrow_upward,
             size: 16,
             color: amountColor,
           ),
