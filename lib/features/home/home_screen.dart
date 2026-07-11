@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,7 +64,7 @@ class HomeScreen extends ConsumerWidget {
                     if (items.isEmpty) return const SizedBox.shrink();
                     // Consolidated total.
                     final total = items.fold(
-                      AmountFormatter.toDecimal('0') ?? _zero,
+                      Decimal.zero,
                       (sum, a) => sum + a.currentBalance,
                     );
                     return Text(
@@ -125,12 +126,6 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-// ignore: non_constant_identifier_names
-final _zero =
-    AmountFormatter.toDecimal('0') ??
-    // Fallback — can't be null but satisfies the compiler.
-    (throw StateError('Decimal zero failed'));
-
 class _AccountTile extends StatelessWidget {
   const _AccountTile(this.account);
   final Account account;
@@ -140,7 +135,7 @@ class _AccountTile extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isNegative =
-        account.currentBalance < (AmountFormatter.toDecimal('0') ?? _zero);
+        account.currentBalance < Decimal.zero;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
