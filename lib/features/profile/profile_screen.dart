@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api_error.dart';
+import '../../core/theme.dart';
 import '../../core/theme_mode_provider.dart';
 import '../../data/models/user.dart';
 import '../auth/auth_controller.dart';
 
 // ---------------------------------------------------------------------------
-// ProfileScreen
+// ProfileScreen — mockup 19
 // ---------------------------------------------------------------------------
 
 class ProfileScreen extends ConsumerWidget {
@@ -18,70 +19,117 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
     final user = auth.user;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil')),
+      backgroundColor: cs.surface,
+      appBar: AppBar(
+        title: const Text('Perfil'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: cs.onSurface,
+        actions: [
+          // Bell icon — no action yet (placeholder per mockup).
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: 'Notificaciones',
+            onPressed: null,
+          ),
+        ],
+      ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: const EdgeInsets.only(bottom: 40),
         children: [
-          // Header card — avatar, name, email, plan badge.
-          _UserHeader(user: user),
-          const SizedBox(height: 8),
+          // ---- Teal header card ----
+          _ProfileHeader(user: user),
 
-          // ---- Cuentas ----
-          _SectionTile(
+          const SizedBox(height: BalviaTheme.spaceMd),
+
+          // ---- HERRAMIENTAS section ----
+          _SectionLabel(label: 'HERRAMIENTAS'),
+
+          _ProfileTile(
+            iconColor: const Color(0xFF26A69A), // teal
+            iconBg: const Color(0xFFE0F2F1),
             icon: Icons.account_balance_wallet_outlined,
             title: 'Cuentas',
-            subtitle: 'Gestiona tus cuentas y saldos',
             onTap: () => context.push('/accounts'),
           ),
-
-          // ---- Categorías ----
-          _SectionTile(
+          _ProfileTile(
+            iconColor: const Color(0xFF7E57C2), // purple
+            iconBg: const Color(0xFFEDE7F6),
             icon: Icons.category_outlined,
             title: 'Categorías',
-            subtitle: 'Organiza tus gastos e ingresos',
             onTap: () => context.push('/categories'),
           ),
-
-          // ---- Apariencia ----
-          _AppearanceTile(),
-
-          const Divider(indent: 16, endIndent: 16),
-
-          // ---- Coming soon items ----
-          _DisabledSectionTile(
-            icon: Icons.flag_outlined,
+          _DisabledProfileTile(
+            iconColor: const Color(0xFFFFA726), // amber
+            iconBg: const Color(0xFFFFF3E0),
+            icon: Icons.timer_outlined,
+            title: 'Configuración del seguimiento',
+          ),
+          _DisabledProfileTile(
+            iconColor: const Color(0xFF42A5F5), // blue
+            iconBg: const Color(0xFFE3F2FD),
+            icon: Icons.savings_outlined,
             title: 'Metas de ahorro',
           ),
-          _DisabledSectionTile(
+          _DisabledProfileTile(
+            iconColor: const Color(0xFF66BB6A), // green
+            iconBg: const Color(0xFFE8F5E9),
             icon: Icons.repeat_outlined,
             title: 'Transacciones recurrentes',
           ),
-          _DisabledSectionTile(
-            icon: Icons.tune_outlined,
-            title: 'Configuración del seguimiento',
-          ),
-          _DisabledSectionTile(
-            icon: Icons.star_outline,
-            title: 'Planes y suscripción',
-          ),
-          _DisabledSectionTile(icon: Icons.lock_outline, title: 'Seguridad'),
 
-          const Divider(indent: 16, endIndent: 16),
+          const SizedBox(height: BalviaTheme.spaceMd),
 
-          // ---- Cerrar sesión ----
+          // ---- PREFERENCIAS section ----
+          _SectionLabel(label: 'PREFERENCIAS'),
+
+          _AppearanceTile(),
+
+          _DisabledProfileTile(
+            iconColor: const Color(0xFF26A69A),
+            iconBg: const Color(0xFFE0F2F1),
+            icon: Icons.shield_outlined,
+            title: 'Seguridad y privacidad',
+          ),
+          _DisabledProfileTile(
+            iconColor: const Color(0xFFEF5350),
+            iconBg: const Color(0xFFFFEBEE),
+            icon: Icons.help_outline,
+            title: 'Ayuda y soporte',
+          ),
+
+          const SizedBox(height: BalviaTheme.spaceMd),
+
+          // ---- CUENTA section ----
+          _SectionLabel(label: 'CUENTA'),
+
+          // Cerrar sesión — red.
           ListTile(
-            leading: Icon(
-              Icons.logout,
-              color: Theme.of(context).colorScheme.error,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: BalviaTheme.spaceMd,
+              vertical: 2,
+            ),
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(BalviaTheme.radiusSm),
+              ),
+              child: Icon(
+                Icons.logout,
+                size: 18,
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
             title: Text(
               'Cerrar sesión',
-              style: TextStyle(
+              style: BalviaTheme.bodyStyle(
                 color: Theme.of(context).colorScheme.error,
-                fontWeight: FontWeight.w500,
-              ),
+              ).copyWith(fontWeight: FontWeight.w500),
             ),
             onTap: () => _confirmLogout(context, ref),
           ),
@@ -126,74 +174,85 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// User header card
+// Teal profile header
 // ---------------------------------------------------------------------------
 
-class _UserHeader extends StatelessWidget {
-  const _UserHeader({this.user});
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({this.user});
   final User? user;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
     final initials = _initials(user);
 
     return Container(
-      color: cs.surfaceContainerLow,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-      child: Row(
+      width: double.infinity,
+      color: BalviaTheme.seed,
+      padding: const EdgeInsets.fromLTRB(
+        BalviaTheme.spaceMd,
+        BalviaTheme.spaceMd,
+        BalviaTheme.spaceMd,
+        BalviaTheme.spaceLg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Translucent circle avatar with initial.
           CircleAvatar(
-            radius: 32,
-            backgroundColor: cs.primaryContainer,
+            radius: 36,
+            backgroundColor: Colors.white.withValues(alpha: 0.25),
             child: Text(
               initials,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: cs.onPrimaryContainer,
+              style: BalviaTheme.titleStyle(color: Colors.white).copyWith(
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (user?.fullName != null && user!.fullName!.isNotEmpty)
-                  Text(
-                    user!.fullName!,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                Text(
-                  user?.email ?? '',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Plan badge — hardcoded Free until paywall feature exists.
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: cs.secondaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Plan Free',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // Full name.
+          if (user?.fullName != null && user!.fullName!.isNotEmpty)
+            Text(
+              user!.fullName!,
+              style: BalviaTheme.titleStyle(color: Colors.white),
+            ),
+
+          // Email.
+          Text(
+            user?.email ?? '',
+            style: BalviaTheme.captionStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // Plan badge pill.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: const Text(
+              '★ Plan Free',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(height: BalviaTheme.spaceXs),
+
+          // "Mejorar a Pro" link — dead (no action yet).
+          GestureDetector(
+            onTap: null,
+            child: Text(
+              'Mejorar a Pro ›',
+              style: BalviaTheme.captionStyle(
+                color: Colors.white.withValues(alpha: 0.9),
+              ).copyWith(decoration: TextDecoration.underline),
             ),
           ),
         ],
@@ -216,67 +275,141 @@ class _UserHeader extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Section tile
+// Section label overline
 // ---------------------------------------------------------------------------
 
-class _SectionTile extends StatelessWidget {
-  const _SectionTile({
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        BalviaTheme.spaceMd,
+        BalviaTheme.spaceSm,
+        BalviaTheme.spaceMd,
+        4,
+      ),
+      child: Text(
+        label,
+        style: BalviaTheme.overlineStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Profile tile — active
+// ---------------------------------------------------------------------------
+
+class _ProfileTile extends StatelessWidget {
+  const _ProfileTile({
+    required this.iconColor,
+    required this.iconBg,
     required this.icon,
     required this.title,
-    this.subtitle,
     this.onTap,
   });
 
+  final Color iconColor;
+  final Color iconBg;
   final IconData icon;
   final String title;
-  final String? subtitle;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
-      trailing: const Icon(Icons.chevron_right),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: BalviaTheme.spaceMd,
+        vertical: 2,
+      ),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: iconBg,
+          borderRadius: BorderRadius.circular(BalviaTheme.radiusSm),
+        ),
+        child: Icon(icon, size: 18, color: iconColor),
+      ),
+      title: Text(
+        title,
+        style: BalviaTheme.bodyStyle(color: cs.onSurface),
+      ),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: cs.onSurfaceVariant,
+        size: 20,
+      ),
       onTap: onTap,
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Disabled / "coming soon" tile
+// Disabled tile ("Próximamente")
 // ---------------------------------------------------------------------------
 
-class _DisabledSectionTile extends StatelessWidget {
-  const _DisabledSectionTile({required this.icon, required this.title});
+class _DisabledProfileTile extends StatelessWidget {
+  const _DisabledProfileTile({
+    required this.iconColor,
+    required this.iconBg,
+    required this.icon,
+    required this.title,
+  });
 
+  final Color iconColor;
+  final Color iconBg;
   final IconData icon;
   final String title;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     return ListTile(
-      leading: Icon(icon, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+      enabled: false,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: BalviaTheme.spaceMd,
+        vertical: 2,
+      ),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: iconBg.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(BalviaTheme.radiusSm),
+        ),
+        child: Icon(icon, size: 18, color: iconColor.withValues(alpha: 0.4)),
+      ),
       title: Text(
         title,
-        style: TextStyle(color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+        style: BalviaTheme.bodyStyle(
+          color: cs.onSurface.withValues(alpha: 0.38),
+        ),
       ),
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          border: Border.all(color: cs.outline.withValues(alpha: 0.4)),
-          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: cs.outline.withValues(alpha: 0.3),
+          ),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
           'Próximamente',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          style: TextStyle(
+            fontSize: 10,
             color: cs.onSurfaceVariant.withValues(alpha: 0.5),
           ),
         ),
       ),
-      enabled: false,
     );
   }
 }
@@ -292,12 +425,35 @@ class _AppearanceTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeAsync = ref.watch(themeModeProvider);
     final current = themeAsync.value ?? ThemeMode.system;
+    final cs = Theme.of(context).colorScheme;
 
     return ListTile(
-      leading: const Icon(Icons.palette_outlined),
-      title: const Text('Apariencia'),
-      subtitle: Text(_modeLabel(current)),
-      trailing: const Icon(Icons.chevron_right),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: BalviaTheme.spaceMd,
+        vertical: 2,
+      ),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3E0),
+          borderRadius: BorderRadius.circular(BalviaTheme.radiusSm),
+        ),
+        child: const Icon(
+          Icons.palette_outlined,
+          size: 18,
+          color: Color(0xFFFFA726),
+        ),
+      ),
+      title: Text(
+        'Apariencia',
+        style: BalviaTheme.bodyStyle(color: cs.onSurface),
+      ),
+      subtitle: Text(
+        _modeLabel(current),
+        style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+      ),
+      trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 20),
       onTap: () => _showThemePicker(context, ref, current),
     );
   }

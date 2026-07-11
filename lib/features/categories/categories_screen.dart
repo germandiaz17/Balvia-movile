@@ -3,84 +3,189 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_error.dart';
 import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../data/models/category.dart';
+import '../../shared/category_avatar.dart';
 
 // ---------------------------------------------------------------------------
 // CategoriesScreen
 // ---------------------------------------------------------------------------
 
-class CategoriesScreen extends ConsumerWidget {
+class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CategoriesScreen> createState() => _CategoriesScreenState();
+}
+
+class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
+  // 0 = Gastos, 1 = Ingresos.
+  int _tabIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       appBar: AppBar(
         title: const Text('Categorías'),
-        actions: [
-          IconButton(
-            tooltip: 'Actualizar',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(categoriesProvider),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fab_new_category',
-        onPressed: () => _showCreateSheet(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Nueva'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: cs.onSurface,
       ),
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Card(
             margin: const EdgeInsets.all(24),
-            color: Theme.of(context).colorScheme.errorContainer,
+            color: cs.errorContainer,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
                 apiErrorMessage(e),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onErrorContainer,
-                ),
+                style: TextStyle(color: cs.onErrorContainer),
               ),
             ),
           ),
         ),
         data: (cats) {
-          final system = cats.where((c) => c.isSystem).toList()
+          final typeKey = _tabIndex == 0 ? 'expense' : 'income';
+
+          final system = cats
+              .where((c) => c.isSystem && c.categoryType == typeKey)
+              .toList()
             ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
-          final own = cats.where((c) => !c.isSystem).toList()
+
+          final own = cats
+              .where((c) => !c.isSystem && c.categoryType == typeKey)
+              .toList()
             ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(categoriesProvider),
-            child: ListView(
-              padding: const EdgeInsets.only(top: 8, bottom: 88),
-              children: [
-                if (own.isNotEmpty) ...[
-                  _SectionHeader(title: 'Mis categorías (${own.length})'),
-                  ...own.map(
-                    (c) => _CategoryTile(
-                      category: c,
-                      onEdit: () => _showEditSheet(context, ref, c),
-                      onDelete: () => _confirmDelete(context, ref, c),
+            child: CustomScrollView(
+              slivers: [
+                // ---- Segmented control Gastos / Ingresos ----
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      BalviaTheme.spaceMd,
+                      BalviaTheme.spaceSm,
+                      BalviaTheme.spaceMd,
+                      BalviaTheme.spaceMd,
+                    ),
+                    child: SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(value: 0, label: Text('Gastos')),
+                        ButtonSegment(value: 1, label: Text('Ingresos')),
+                      ],
+                      selected: {_tabIndex},
+                      onSelectionChanged: (s) =>
+                          setState(() => _tabIndex = s.first),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                ],
-                _SectionHeader(title: 'Sistema (${system.length})'),
-                ...system.map(
-                  (c) => _CategoryTile(
-                    category: c,
-                    readOnly: true,
-                    onEdit: null,
-                    onDelete: null,
+                ),
+
+                // ---- SISTEMA overline + grid ----
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      BalviaTheme.spaceMd,
+                      0,
+                      BalviaTheme.spaceMd,
+                      BalviaTheme.spaceSm,
+                    ),
+                    child: Text(
+                      'SISTEMA (${system.length} CATEGORÍAS)',
+                      style: BalviaTheme.overlineStyle(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                 ),
+
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: BalviaTheme.spaceMd,
+                  ),
+                  sliver: SliverGrid.count(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: BalviaTheme.spaceMd,
+                    crossAxisSpacing: BalviaTheme.spaceSm,
+                    childAspectRatio: 0.75,
+                    children: system
+                        .map(
+                          (c) => _CategoryGridCell(
+                            category: c,
+                            readOnly: true,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: BalviaTheme.spaceLg),
+                ),
+
+                // ---- Mis categorías (propias) ----
+                if (own.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        BalviaTheme.spaceMd,
+                        0,
+                        BalviaTheme.spaceMd,
+                        BalviaTheme.spaceSm,
+                      ),
+                      child: Text(
+                        'MIS CATEGORÍAS (${own.length})',
+                        style: BalviaTheme.overlineStyle(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BalviaTheme.spaceMd,
+                    ),
+                    sliver: SliverGrid.count(
+                      crossAxisCount: 4,
+                      mainAxisSpacing: BalviaTheme.spaceMd,
+                      crossAxisSpacing: BalviaTheme.spaceSm,
+                      childAspectRatio: 0.75,
+                      children: own
+                          .map(
+                            (c) => _CategoryGridCell(
+                              category: c,
+                              readOnly: false,
+                              onTap: () => _showEditSheet(context, ref, c),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: BalviaTheme.spaceLg),
+                  ),
+                ],
+
+                // ---- CTA dashed "Nueva categoría personalizada" ----
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BalviaTheme.spaceMd,
+                    ),
+                    child: _DashedCategoryButton(
+                      onTap: () => _showCreateSheet(context, ref),
+                    ),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 80)),
               ],
             ),
           );
@@ -96,6 +201,7 @@ class CategoriesScreen extends ConsumerWidget {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _CategoryFormSheet(
+        initialType: _tabIndex == 0 ? 'expense' : 'income',
         onSave: (name, type, icon, color) async {
           await ref
               .read(categoryRepositoryProvider)
@@ -124,168 +230,174 @@ class CategoriesScreen extends ConsumerWidget {
               .update(cat.id, name: name, icon: icon, color: color);
           ref.invalidate(categoriesProvider);
         },
+        onDelete: () async {
+          await ref.read(categoryRepositoryProvider).delete(cat.id);
+          ref.invalidate(categoriesProvider);
+        },
       ),
     );
   }
+}
 
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    Category cat,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar categoría'),
-        content: Text(
-          '¿Eliminar "${cat.name}"? Esta acción no se puede deshacer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar'),
+// ---------------------------------------------------------------------------
+// Grid cell
+// ---------------------------------------------------------------------------
+
+class _CategoryGridCell extends StatelessWidget {
+  const _CategoryGridCell({
+    required this.category,
+    required this.readOnly,
+    this.onTap,
+  });
+
+  final Category category;
+  final bool readOnly;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CategoryAvatar(category: category, radius: 28),
+              if (readOnly)
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.surface,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.lock_outline,
+                      size: 9,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
+          const SizedBox(height: 6),
+          Text(
+            category.name,
+            style: BalviaTheme.captionStyle(
+              color: Theme.of(context).colorScheme.onSurface,
             ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Eliminar'),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
+  }
+}
 
-    if (confirmed != true || !context.mounted) return;
+// ---------------------------------------------------------------------------
+// Dashed CTA button
+// ---------------------------------------------------------------------------
 
-    try {
-      await ref.read(categoryRepositoryProvider).delete(cat.id);
-      ref.invalidate(categoriesProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Categoría "${cat.name}" eliminada'),
-            behavior: SnackBarBehavior.floating,
+class _DashedCategoryButton extends StatelessWidget {
+  const _DashedCategoryButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(BalviaTheme.spaceMd),
+        decoration: BoxDecoration(
+          border: Border.all(color: cs.outlineVariant, style: BorderStyle.none),
+          borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+        ),
+        child: CustomPaint(
+          painter: _DashedRectPainter(color: cs.outlineVariant),
+          child: Padding(
+            padding: const EdgeInsets.all(BalviaTheme.spaceMd),
+            child: Row(
+              children: [
+                Icon(Icons.add, color: BalviaTheme.seed, size: 20),
+                const SizedBox(width: BalviaTheme.spaceSm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Nueva categoría personalizada',
+                        style: BalviaTheme.bodyStyle(color: BalviaTheme.seed)
+                            .copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        'Agrega tu propio icono, color y nombre',
+                        style: BalviaTheme.captionStyle(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(apiErrorMessage(e)),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRectPainter extends CustomPainter {
+  const _DashedRectPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    const dashW = 6.0;
+    const dashG = 4.0;
+    const r = BalviaTheme.radiusMd;
+
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, size.width, size.height),
+          const Radius.circular(r),
+        ),
+      );
+
+    for (final metric in path.computeMetrics()) {
+      double d = 0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + dashW), paint);
+        d += dashW + dashG;
       }
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Section header
-// ---------------------------------------------------------------------------
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-  final String title;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
+  bool shouldRepaint(_DashedRectPainter old) => old.color != color;
 }
 
 // ---------------------------------------------------------------------------
-// Category tile
-// ---------------------------------------------------------------------------
-
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({
-    required this.category,
-    required this.onEdit,
-    required this.onDelete,
-    this.readOnly = false,
-  });
-
-  final Category category;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final bool readOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    final typeColor = switch (category.categoryType) {
-      'income' => cs.primary,
-      'expense' => cs.error,
-      _ => cs.secondary,
-    };
-    final typeLabel = switch (category.categoryType) {
-      'income' => 'Ingreso',
-      'expense' => 'Gasto',
-      _ => 'Transferencia',
-    };
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      child: ListTile(
-        leading: CircleAvatar(
-          radius: 18,
-          backgroundColor: typeColor.withValues(alpha: 0.15),
-          child: readOnly
-              ? Icon(Icons.lock_outline, size: 16, color: typeColor)
-              : Icon(Icons.label_outline, size: 16, color: typeColor),
-        ),
-        title: Text(category.name),
-        subtitle: Text(
-          typeLabel,
-          style: theme.textTheme.bodySmall?.copyWith(color: typeColor),
-        ),
-        trailing: readOnly
-            ? Tooltip(
-                message: 'Categoría del sistema (solo lectura)',
-                child: Icon(
-                  Icons.lock_outline,
-                  size: 16,
-                  color: cs.onSurfaceVariant,
-                ),
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'Editar',
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    onPressed: onEdit,
-                  ),
-                  IconButton(
-                    tooltip: 'Eliminar',
-                    icon: Icon(Icons.delete_outline, size: 18, color: cs.error),
-                    onPressed: onDelete,
-                  ),
-                ],
-              ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Category form (create / edit)
+// Category form sheet (create / edit)
 // ---------------------------------------------------------------------------
 
 typedef _SaveCallback =
@@ -304,6 +416,7 @@ class _CategoryFormSheet extends StatefulWidget {
     this.initialIcon,
     this.initialColor,
     this.editMode = false,
+    this.onDelete,
   });
 
   final _SaveCallback onSave;
@@ -312,6 +425,7 @@ class _CategoryFormSheet extends StatefulWidget {
   final String? initialIcon;
   final String? initialColor;
   final bool editMode;
+  final Future<void> Function()? onDelete;
 
   @override
   State<_CategoryFormSheet> createState() => _CategoryFormSheetState();
@@ -357,6 +471,43 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
     }
   }
 
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar categoría'),
+        content: Text(
+          '¿Eliminar "${_nameController.text}"? Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      await widget.onDelete!();
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _error = apiErrorMessage(e);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -378,7 +529,6 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Drag handle.
             Center(
               child: Container(
                 width: 40,
@@ -391,15 +541,26 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
             ),
             const SizedBox(height: 16),
 
-            Text(
-              widget.editMode ? 'Editar categoría' : 'Nueva categoría',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.editMode ? 'Editar categoría' : 'Nueva categoría',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (widget.editMode && widget.onDelete != null)
+                  IconButton(
+                    icon: Icon(Icons.delete_outline, color: cs.error),
+                    tooltip: 'Eliminar',
+                    onPressed: _isLoading ? null : _delete,
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
 
-            // Name field.
             TextField(
               controller: _nameController,
               autofocus: true,

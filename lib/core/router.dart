@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/accounts/accounts_screen.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
@@ -56,7 +57,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Push routes (displayed on top of the shell, no bottom nav).
       GoRoute(path: '/categories', builder: (_, _) => const CategoriesScreen()),
-      GoRoute(path: '/accounts', builder: (_, _) => const _AccountsPage()),
+      GoRoute(path: '/accounts', builder: (_, _) => const AccountsScreen()),
       // Dashboard is accessed through the shell at /home (Tab 0 replaces
       // the old /dashboard). The old route is kept for backward compat.
       GoRoute(path: '/dashboard', builder: (_, _) => const HomeScreen()),
@@ -106,13 +107,3 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Thin wrapper: re-uses the existing HomeScreen account management UI.
-/// Full accounts screen (design brief §5.8) is a post-MVP task.
-class _AccountsPage extends StatelessWidget {
-  const _AccountsPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return const HomeScreen();
-  }
-}

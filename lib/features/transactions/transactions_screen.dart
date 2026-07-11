@@ -1,7 +1,6 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/amount_formatter.dart';
 import '../../core/api_error.dart';
@@ -11,39 +10,37 @@ import '../../data/models/account.dart';
 import '../../data/models/category.dart';
 import '../../data/models/transaction.dart';
 import '../../shared/category_avatar.dart';
+import '../../shared/sync_status_icon.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Formats a YYYY-MM-DD string as "4 jul. 2026" (es-CO abbreviated).
-String _formatDate(String yyyyMmDd) {
+/// Returns "Hoy", "Ayer", or "4 jul" for a YYYY-MM-DD string (es-CO).
+String _formatDayHeader(String yyyyMmDd) {
   final dt = DateTime.parse(yyyyMmDd);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+  final day = DateTime(dt.year, dt.month, dt.day);
+
   const months = [
-    'ene.',
-    'feb.',
-    'mar.',
-    'abr.',
-    'may.',
-    'jun.',
-    'jul.',
-    'ago.',
-    'sep.',
-    'oct.',
-    'nov.',
-    'dic.',
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
   ];
-  return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+
+  if (day == today) return 'Hoy · ${dt.day} ${months[dt.month - 1]}';
+  if (day == yesterday) return 'Ayer · ${dt.day} ${months[dt.month - 1]}';
+  return '${dt.day} ${months[dt.month - 1]}';
 }
 
 /// Groups a list of transactions by their [transactionDate] (YYYY-MM-DD).
-/// The resulting map is ordered newest date first.
+/// Resulting map is ordered newest date first (insertion order preserved).
 Map<String, List<Transaction>> _groupByDay(List<Transaction> txs) {
   final map = <String, List<Transaction>>{};
   for (final tx in txs) {
     map.putIfAbsent(tx.transactionDate, () => []).add(tx);
   }
-  // txs is already sorted newest-first; the insertion order is preserved.
   return map;
 }
 
@@ -55,7 +52,6 @@ const _txTypeLabels = {
 
 String _typeLabel(String type) => _txTypeLabels[type] ?? type;
 
-/// Returns the category name from [categories] by [categoryId], or a fallback.
 String _categoryName(String? categoryId, List<Category> categories) {
   if (categoryId == null) return 'Sin categoría';
   try {
@@ -65,7 +61,6 @@ String _categoryName(String? categoryId, List<Category> categories) {
   }
 }
 
-/// Returns the account name from [accounts] by [accountId], or a fallback.
 String _accountName(String accountId, List<Account> accounts) {
   try {
     return accounts.firstWhere((a) => a.id == accountId).name;
@@ -75,67 +70,164 @@ String _accountName(String accountId, List<Account> accounts) {
 }
 
 // ---------------------------------------------------------------------------
+// Filter type enum
+// ---------------------------------------------------------------------------
+
+enum _TxFilter { all, expense, income, transfer }
+
+// ---------------------------------------------------------------------------
 // TransactionsScreen
 // ---------------------------------------------------------------------------
 
-class TransactionsScreen extends ConsumerWidget {
+class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransactionsScreen> createState() => _TransactionsScreenState();
+}
+
+class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
+  _TxFilter _filter = _TxFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final txsAsync = ref.watch(allTransactionsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
     final accountsAsync = ref.watch(accountsForTransactionsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Movimientos'),
-        actions: [
-          // Access category management.
-          IconButton(
-            tooltip: 'Gestionar categorías',
-            icon: const Icon(Icons.category_outlined),
-            onPressed: () => context.push('/categories'),
-          ),
-          IconButton(
-            tooltip: 'Actualizar',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => _refresh(ref),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async => _refresh(ref),
-        child: txsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => _ErrorBody(message: apiErrorMessage(e)),
-          data: (txs) {
-            if (txs.isEmpty) {
-              return const _EmptyBody();
-            }
+      backgroundColor: cs.surface,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async => _refresh(ref),
+          child: CustomScrollView(
+            slivers: [
+              // ---- Big title + sync status pill ----
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BalviaTheme.spaceMd,
+                    BalviaTheme.spaceLg,
+                    BalviaTheme.spaceMd,
+                    BalviaTheme.spaceSm,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Transacciones',
+                        style: BalviaTheme.headlineStyle(color: cs.onSurface),
+                      ),
+                      const SizedBox(height: BalviaTheme.spaceXs),
+                      const SyncStatusIcon(compact: false),
+                    ],
+                  ),
+                ),
+              ),
 
-            final categories = categoriesAsync.value ?? const <Category>[];
-            final accounts = accountsAsync.value ?? const <Account>[];
-            final grouped = _groupByDay(txs);
-            final dates = grouped.keys.toList();
+              // ---- Filter chips row ----
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BalviaTheme.spaceMd,
+                    ),
+                    children: _TxFilter.values.map((f) {
+                      final label = switch (f) {
+                        _TxFilter.all => 'Todos',
+                        _TxFilter.expense => 'Gastos',
+                        _TxFilter.income => 'Ingresos',
+                        _TxFilter.transfer => 'Transferencias',
+                      };
+                      final selected = _filter == f;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: BalviaTheme.spaceSm),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _filter = f),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected ? BalviaTheme.seed : Colors.transparent,
+                              borderRadius: BorderRadius.circular(100),
+                              border: Border.all(
+                                color: selected
+                                    ? BalviaTheme.seed
+                                    : cs.outlineVariant,
+                              ),
+                            ),
+                            child: Text(
+                              label,
+                              style: BalviaTheme.captionStyle(
+                                color: selected ? Colors.white : cs.onSurfaceVariant,
+                              ).copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
 
-            return ListView.builder(
-              padding: const EdgeInsets.only(top: 8, bottom: 80),
-              itemCount: dates.length,
-              itemBuilder: (context, i) {
-                final date = dates[i];
-                final dayTxs = grouped[date]!;
-                return _DaySection(
-                  date: date,
-                  transactions: dayTxs,
-                  categories: categories,
-                  accounts: accounts,
-                  onTap: (tx) => _openEditSheet(context, ref, tx, accounts),
-                  onDelete: (tx) => _confirmDelete(context, ref, tx),
-                );
-              },
-            );
-          },
+              const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+
+              // ---- Body ----
+              txsAsync.when(
+                loading: () => const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) => SliverFillRemaining(
+                  child: _ErrorBody(message: apiErrorMessage(e)),
+                ),
+                data: (allTxs) {
+                  final categories = categoriesAsync.value ?? const <Category>[];
+                  final accounts = accountsAsync.value ?? const <Account>[];
+
+                  // Apply filter.
+                  final txs = _filter == _TxFilter.all
+                      ? allTxs
+                      : allTxs
+                            .where(
+                              (t) => t.transactionType == _filter.name,
+                            )
+                            .toList();
+
+                  if (txs.isEmpty) {
+                    return const SliverFillRemaining(child: _EmptyBody());
+                  }
+
+                  final grouped = _groupByDay(txs);
+                  final dates = grouped.keys.toList();
+
+                  return SliverList.builder(
+                    itemCount: dates.length,
+                    itemBuilder: (ctx, i) {
+                      final date = dates[i];
+                      final dayTxs = grouped[date]!;
+                      return _DaySection(
+                        date: date,
+                        transactions: dayTxs,
+                        categories: categories,
+                        accounts: accounts,
+                        onTap: (tx) => _openEditSheet(ctx, ref, tx, accounts),
+                        onDelete: (tx) => _confirmDelete(ctx, ref, tx),
+                      );
+                    },
+                  );
+                },
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
         ),
       ),
     );
@@ -230,7 +322,6 @@ class TransactionsScreen extends ConsumerWidget {
     ref.invalidate(recentTransactionsProvider);
     ref.invalidate(activeTrackingPeriodProvider);
     ref.invalidate(periodSummaryProvider);
-    // Accounts balances change after any transaction mutation.
     ref.invalidate(accountsForTransactionsProvider);
   }
 }
@@ -239,7 +330,6 @@ class TransactionsScreen extends ConsumerWidget {
 // Provider: accounts list for the Movimientos screen
 // ---------------------------------------------------------------------------
 
-/// Cached accounts list shared between the Movimientos tab and the edit sheet.
 final accountsForTransactionsProvider =
     FutureProvider.autoDispose<List<Account>>(
       (ref) => ref.watch(accountRepositoryProvider).list(),
@@ -280,32 +370,35 @@ class _DaySection extends StatelessWidget {
         dayNet -= tx.amount;
       }
     }
-    final netColor = dayNet >= Decimal.zero
-        ? BalviaTheme.income
-        : BalviaTheme.expense;
+    final netColor =
+        dayNet >= Decimal.zero ? BalviaTheme.income : BalviaTheme.expense;
+    final netSign = dayNet >= Decimal.zero ? '+' : '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Day header.
+        // Day header: label left, net right.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsets.fromLTRB(
+            BalviaTheme.spaceMd,
+            BalviaTheme.spaceSm,
+            BalviaTheme.spaceMd,
+            BalviaTheme.spaceXs,
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _formatDate(date),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                _formatDayHeader(date),
+                style: BalviaTheme.captionStyle(
                   color: cs.onSurfaceVariant,
-                ),
+                ).copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                AmountFormatter.formatCOP(dayNet),
-                style: theme.textTheme.labelMedium?.copyWith(
+                '$netSign${AmountFormatter.formatCOP(dayNet)}',
+                style: BalviaTheme.captionStyle(
                   color: netColor,
-                  fontWeight: FontWeight.bold,
-                ),
+                ).copyWith(fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -360,7 +453,6 @@ class _SwipeableTransactionTile extends StatelessWidget {
       ),
       confirmDismiss: (_) async {
         onDelete();
-        // Return false: the tile removal is handled by provider invalidation.
         return false;
       },
       child: _TransactionTile(
@@ -374,7 +466,7 @@ class _SwipeableTransactionTile extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Transaction tile
+// Transaction tile (matches mockup 15 spec)
 // ---------------------------------------------------------------------------
 
 class _TransactionTile extends StatelessWidget {
@@ -393,38 +485,59 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     final amountColor = BalviaTheme.colorForType(tx.transactionType);
     final sign = BalviaTheme.signForType(tx.transactionType);
 
-    // Resolve category and account objects for CategoryAvatar.
     final category = tx.categoryId != null
         ? categories.where((c) => c.id == tx.categoryId).firstOrNull
         : null;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      child: ListTile(
-        onTap: onTap,
-        leading: CategoryAvatar(category: category, radius: 18),
-        title: Text(
-          tx.description ?? _typeLabel(tx.transactionType),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    final catName = _categoryName(tx.categoryId, categories);
+    final accName = _accountName(tx.accountId, accounts);
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: BalviaTheme.spaceMd,
+          vertical: BalviaTheme.spaceXs + 2,
         ),
-        subtitle: Text(
-          '${_categoryName(tx.categoryId, categories)}  ·  '
-          '${_accountName(tx.accountId, accounts)}',
-          style: theme.textTheme.bodySmall,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Text(
-          '$sign${AmountFormatter.formatCOP(tx.amount)}',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: amountColor,
-            fontWeight: FontWeight.bold,
-          ),
+        child: Row(
+          children: [
+            CategoryAvatar(category: category, radius: 20),
+            const SizedBox(width: BalviaTheme.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tx.description ?? _typeLabel(tx.transactionType),
+                    style: BalviaTheme.bodyStyle(
+                      color: cs.onSurface,
+                    ).copyWith(fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$catName · $accName',
+                    style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: BalviaTheme.spaceSm),
+            Text(
+              '$sign${AmountFormatter.formatCOP(tx.amount)}',
+              style: BalviaTheme.bodyStyle(
+                color: amountColor,
+              ).copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
       ),
     );
@@ -432,7 +545,7 @@ class _TransactionTile extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Edit transaction sheet
+// Edit transaction sheet (unchanged logic, visual polish only)
 // ---------------------------------------------------------------------------
 
 class _EditTransactionSheet extends ConsumerStatefulWidget {
@@ -468,7 +581,6 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
     _selectedCategoryId = tx.categoryId;
     _descController = TextEditingController(text: tx.description ?? '');
     _notesController = TextEditingController(text: tx.notes ?? '');
-    // Display amount without trailing .00 for COP integers.
     _amountController = TextEditingController(
       text: tx.amount.truncate().toBigInt().toString(),
     );
@@ -534,13 +646,15 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(BalviaTheme.radiusXl),
+        ),
       ),
       padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: BalviaTheme.spaceMd,
+        right: BalviaTheme.spaceMd,
+        top: BalviaTheme.spaceMd,
+        bottom: MediaQuery.of(context).viewInsets.bottom + BalviaTheme.spaceLg,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -558,18 +672,14 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: BalviaTheme.spaceMd),
 
             Text(
               'Editar movimiento',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: BalviaTheme.titleStyle(color: cs.onSurface),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: BalviaTheme.spaceMd),
 
-            // Type selector (expense / income only — transfers are read-only in
-            // the edit flow to avoid the complexity of transfer_account_id).
             if (_transactionType != 'transfer') ...[
               SegmentedButton<String>(
                 segments: const [
@@ -579,7 +689,9 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                 selected: {_transactionType},
                 onSelectionChanged: (s) =>
                     setState(() => _transactionType = s.first),
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
               const SizedBox(height: 12),
             ] else
@@ -592,15 +704,12 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                   ),
                   decoration: BoxDecoration(
                     color: cs.secondaryContainer,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(BalviaTheme.radiusSm),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.swap_horiz,
-                        size: 16,
-                        color: cs.onSecondaryContainer,
-                      ),
+                      Icon(Icons.swap_horiz, size: 16,
+                          color: cs.onSecondaryContainer),
                       const SizedBox(width: 6),
                       Text(
                         'Transferencia (tipo no editable)',
@@ -611,12 +720,9 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                 ),
               ),
 
-            // Amount.
             TextField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Monto',
                 prefixText: 'COP ',
@@ -626,7 +732,6 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
             ),
             const SizedBox(height: 12),
 
-            // Category selector.
             categoriesAsync.when(
               loading: () => const Center(
                 child: SizedBox(
@@ -634,42 +739,39 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-              error: (e, s) => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
               data: (all) {
-                final filtered =
-                    all
-                        .where(
-                          (c) =>
-                              c.categoryType == _transactionType &&
-                              c.parentId == null,
-                        )
-                        .toList()
-                      ..sort(
-                        (a, b) => a.displayOrder.compareTo(b.displayOrder),
-                      );
+                final filtered = all
+                    .where(
+                      (c) =>
+                          c.categoryType == _transactionType &&
+                          c.parentId == null,
+                    )
+                    .toList()
+                  ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
                 if (filtered.isEmpty) return const SizedBox.shrink();
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Categoría', style: theme.textTheme.labelMedium),
+                    Text('Categoría',
+                        style: BalviaTheme.captionStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     const SizedBox(height: 6),
                     SizedBox(
                       height: 40,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: filtered.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(width: 6),
+                        separatorBuilder: (_, _) => const SizedBox(width: 6),
                         itemBuilder: (ctx, i) {
                           final cat = filtered[i];
                           final selected = cat.id == _selectedCategoryId;
                           return GestureDetector(
                             onTap: () => setState(
-                              () => _selectedCategoryId = selected
-                                  ? null
-                                  : cat.id,
+                              () => _selectedCategoryId =
+                                  selected ? null : cat.id,
                             ),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 120),
@@ -683,7 +785,8 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                                     : cs.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(20),
                                 border: selected
-                                    ? Border.all(color: cs.primary, width: 1.5)
+                                    ? Border.all(
+                                        color: cs.primary, width: 1.5)
                                     : null,
                               ),
                               child: Text(
@@ -709,15 +812,12 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
               },
             ),
 
-            // Account selector.
             InputDecorator(
               decoration: const InputDecoration(
                 labelText: 'Cuenta',
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               ),
               child: widget.accounts.length > 1
                   ? DropdownButton<String>(
@@ -733,9 +833,7 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                           )
                           .toList(),
                       onChanged: (v) {
-                        if (v != null) {
-                          setState(() => _selectedAccountId = v);
-                        }
+                        if (v != null) setState(() => _selectedAccountId = v);
                       },
                     )
                   : Text(
@@ -746,7 +844,6 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
             ),
             const SizedBox(height: 12),
 
-            // Description.
             TextField(
               controller: _descController,
               decoration: const InputDecoration(
@@ -758,7 +855,6 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
             ),
             const SizedBox(height: 12),
 
-            // Notes.
             TextField(
               controller: _notesController,
               decoration: const InputDecoration(
@@ -805,13 +901,32 @@ class _EmptyBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final cs = Theme.of(context).colorScheme;
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(32),
-        child: Text(
-          'Aún no hay movimientos en este periodo.\n'
-          'Usa el botón + en Inicio para registrar uno.',
-          textAlign: TextAlign.center,
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 72,
+              color: cs.onSurfaceVariant.withValues(alpha: 0.35),
+            ),
+            const SizedBox(height: BalviaTheme.spaceMd),
+            Text(
+              'Sin transacciones',
+              style: BalviaTheme.titleStyle(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: BalviaTheme.spaceXs),
+            Text(
+              'Registra tu primer gasto con el botón + de abajo.',
+              style: BalviaTheme.bodyStyle(
+                color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );

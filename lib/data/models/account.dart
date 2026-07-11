@@ -9,6 +9,7 @@ class Account {
     required this.accountType,
     required this.currency,
     required this.currentBalance,
+    required this.isArchived,
     this.icon,
     this.color,
   });
@@ -18,6 +19,7 @@ class Account {
   final String accountType;
   final String currency;
   final Decimal currentBalance;
+  final bool isArchived;
   final String? icon;
   final String? color;
 
@@ -27,6 +29,7 @@ class Account {
     accountType: json['account_type'] as String,
     currency: json['currency'] as String,
     currentBalance: Decimal.parse(json['current_balance'] as String),
+    isArchived: json['is_archived'] as bool? ?? false,
     icon: json['icon'] as String?,
     color: json['color'] as String?,
   );

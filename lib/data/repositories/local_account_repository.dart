@@ -16,6 +16,7 @@ Account _accountRowToModel(db.Account row) => Account(
   accountType: row.accountType,
   currency: row.currency,
   currentBalance: Decimal.parse(row.currentBalance),
+  isArchived: row.isArchived,
   icon: row.icon,
   color: row.color,
 );

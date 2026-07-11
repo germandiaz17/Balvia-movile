@@ -2,15 +2,16 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/amount_formatter.dart';
 import '../../core/api_error.dart';
 import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../data/models/budget.dart';
 import '../../data/models/category.dart';
 import '../../data/models/tracking_period.dart';
 import '../../data/models/transaction.dart';
-import '../../shared/budget_progress_bar.dart';
+import '../../shared/category_avatar.dart';
 import '../../shared/empty_state.dart';
-import '../../shared/period_header.dart';
 
 // ---------------------------------------------------------------------------
 // Decision: spent amount per category in the progress bars
@@ -21,7 +22,6 @@ import '../../shared/period_header.dart';
 // transaction stream (localTransactionsProvider). This is:
 //   1. Offline-first — works without a network call.
 //   2. Always current — updates live as transactions are added.
-// We import allTransactionsProvider (which falls back to Drift).
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -39,29 +39,7 @@ class BudgetsScreen extends ConsumerWidget {
     final categoriesAsync = ref.watch(categoriesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Presupuestos'),
-        actions: [
-          IconButton(
-            tooltip: 'Actualizar',
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(budgetsProvider);
-              ref.invalidate(activeTrackingPeriodProvider);
-              ref.invalidate(allTransactionsProvider);
-            },
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fab_new_budget',
-        icon: const Icon(Icons.add),
-        label: const Text('Nuevo presupuesto'),
-        onPressed: () {
-          final categories = categoriesAsync.value ?? [];
-          _showBudgetForm(context, ref, categories: categories);
-        },
-      ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(budgetsProvider);
@@ -96,7 +74,6 @@ class BudgetsScreen extends ConsumerWidget {
         final txs = txsAsync.value ?? [];
         final categories = categoriesAsync.value ?? [];
 
-        // Compute spent per category_id from local transactions.
         final spentMap = _buildSpentMap(txs);
 
         final global = budgets.where((b) => b.categoryId == null).firstOrNull;
@@ -110,71 +87,201 @@ class BudgetsScreen extends ConsumerWidget {
                 'Crea tu primer presupuesto para controlar tus gastos.\n'
                 'Los presupuestos se copian automáticamente al siguiente seguimiento.',
             cta: 'Nuevo presupuesto',
-            onCta: () {
-              _showBudgetForm(context, ref, categories: categories);
-            },
+            onCta: () => _showBudgetForm(context, ref, categories: categories),
           );
         }
 
-        return ListView(
-          padding: const EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 12,
-            bottom: 100,
-          ),
-          children: [
-            // Period header.
-            if (period != null) ...[
-              PeriodHeader(period: period),
-              const SizedBox(height: 16),
-            ],
+        // Totals for the 3-stat header chips.
+        var totalBudget = Decimal.zero;
+        for (final b in budgets) {
+          totalBudget += b.amount;
+        }
+        final totalSpent = spentMap[null] ?? Decimal.zero;
+        final totalAvailable = totalBudget - totalSpent;
 
-            // Summary row: total presupuestado vs gastado.
-            if (budgets.isNotEmpty) ...[
-              _PeriodBudgetSummary(budgets: budgets, spentMap: spentMap),
-              const SizedBox(height: 16),
-            ],
-
-            // Global budget (category_id: null).
-            if (global != null) ...[
-              _SectionLabel(label: 'Presupuesto global'),
-              _BudgetCard(
-                budget: global,
-                spent: spentMap[null] ?? Decimal.zero,
-                categoryName: 'Global (todo el periodo)',
-                onEdit: () => _showBudgetForm(
-                  context,
-                  ref,
-                  existing: global,
-                  categories: categories,
+        return CustomScrollView(
+          slivers: [
+            // ---- Big title + period date range chip ----
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  BalviaTheme.spaceMd,
+                  BalviaTheme.spaceLg,
+                  BalviaTheme.spaceMd,
+                  BalviaTheme.spaceMd,
                 ),
-                onDelete: () => _confirmDelete(context, ref, global),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Presupuestos',
+                      style: BalviaTheme.headlineStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (period != null)
+                      _PeriodChip(period: period),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
+            ),
+
+            // ---- 3-stat chips row ----
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: BalviaTheme.spaceMd,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _StatChip(
+                        label: 'Presupuestado',
+                        amount: totalBudget,
+                        amountColor: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: BalviaTheme.spaceSm),
+                    Expanded(
+                      child: _StatChip(
+                        label: 'Gastado',
+                        amount: totalSpent,
+                        amountColor: BalviaTheme.expense,
+                      ),
+                    ),
+                    const SizedBox(width: BalviaTheme.spaceSm),
+                    Expanded(
+                      child: _StatChip(
+                        label: 'Disponible',
+                        amount: totalAvailable,
+                        amountColor: totalAvailable >= Decimal.zero
+                            ? BalviaTheme.income
+                            : BalviaTheme.expense,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+
+            // ---- PRESUPUESTO GLOBAL section ----
+            if (global != null) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BalviaTheme.spaceMd, 0, BalviaTheme.spaceMd, BalviaTheme.spaceSm,
+                  ),
+                  child: Text(
+                    'PRESUPUESTO GLOBAL',
+                    style: BalviaTheme.overlineStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: BalviaTheme.spaceMd,
+                  ),
+                  child: _GlobalBudgetCard(
+                    budget: global,
+                    spent: spentMap[null] ?? Decimal.zero,
+                    onEdit: () => _showBudgetForm(
+                      context,
+                      ref,
+                      existing: global,
+                      categories: categories,
+                    ),
+                    onDelete: () => _confirmDelete(context, ref, global),
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
             ],
 
-            // Per-category budgets.
+            // ---- POR CATEGORÍA section ----
             if (catBudgets.isNotEmpty) ...[
-              _SectionLabel(label: 'Por categoría'),
-              ...catBudgets.map((b) {
-                final cat = categories
-                    .where((c) => c.id == b.categoryId)
-                    .firstOrNull;
-                return _BudgetCard(
-                  budget: b,
-                  spent: spentMap[b.categoryId] ?? Decimal.zero,
-                  categoryName: cat?.name ?? 'Sin categoría',
-                  onEdit: () => _showBudgetForm(
-                    context,
-                    ref,
-                    existing: b,
-                    categories: categories,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BalviaTheme.spaceMd, 0, BalviaTheme.spaceMd, BalviaTheme.spaceSm,
                   ),
-                  onDelete: () => _confirmDelete(context, ref, b),
-                );
-              }),
+                  child: Text(
+                    'POR CATEGORÍA',
+                    style: BalviaTheme.overlineStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+              SliverList.separated(
+                itemCount: catBudgets.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: BalviaTheme.spaceSm),
+                itemBuilder: (ctx, i) {
+                  final b = catBudgets[i];
+                  final cat = categories
+                      .where((c) => c.id == b.categoryId)
+                      .firstOrNull;
+                  final spent = spentMap[b.categoryId] ?? Decimal.zero;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BalviaTheme.spaceMd,
+                    ),
+                    child: _CategoryBudgetCard(
+                      budget: b,
+                      category: cat,
+                      spent: spent,
+                      onEdit: () => _showBudgetForm(
+                        ctx,
+                        ref,
+                        existing: b,
+                        categories: categories,
+                      ),
+                      onDelete: () => _confirmDelete(ctx, ref, b),
+                    ),
+                  );
+                },
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
             ],
+
+            // ---- Info banner ----
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: BalviaTheme.spaceMd,
+                ),
+                child: _InfoBanner(
+                  text:
+                      'Los presupuestos se copian automáticamente al siguiente '
+                      'seguimiento para que no tengas que configurarlos de nuevo.',
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+
+            // ---- "Nuevo presupuesto" wide button ----
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: BalviaTheme.spaceMd,
+                ),
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nuevo presupuesto'),
+                  onPressed: () =>
+                      _showBudgetForm(context, ref, categories: categories),
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         );
       },
@@ -291,190 +398,202 @@ class BudgetsScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Period budget summary row
+// Period chip
 // ---------------------------------------------------------------------------
 
-class _PeriodBudgetSummary extends StatelessWidget {
-  const _PeriodBudgetSummary({required this.budgets, required this.spentMap});
-
-  final List<Budget> budgets;
-  final Map<String?, Decimal> spentMap;
+class _PeriodChip extends StatelessWidget {
+  const _PeriodChip({required this.period});
+  final TrackingPeriod period;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    final cs = Theme.of(context).colorScheme;
+    // Format "26 jun – 25 jul"
+    final start = _shortDate(period.startDate);
+    final end = _shortDate(period.endDate);
 
-    // Total budgeted = sum of all budget amounts.
-    var totalBudget = Decimal.zero;
-    for (final b in budgets) {
-      totalBudget += b.amount;
-    }
-
-    // Total spent (use global total from spent map).
-    final totalSpent = spentMap[null] ?? Decimal.zero;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Total presupuestado',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _fmt(totalBudget),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(width: 1, height: 40, color: cs.outlineVariant),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Total gastado',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _fmt(totalSpent),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: totalSpent > totalBudget ? cs.error : cs.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: cs.outlineVariant),
       ),
-    );
-  }
-
-  String _fmt(Decimal v) {
-    // Simple COP format without importing AmountFormatter to keep this widget
-    // self-contained; use the formatter's logic inline.
-    final s = v.truncate().toBigInt().toString();
-    final buf = StringBuffer('\$');
-    buf.write(' ');
-    for (var i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
-      buf.write(s[i]);
-    }
-    return buf.toString();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Section label
-// ---------------------------------------------------------------------------
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
       child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+        '$start – $end',
+        style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant)
+            .copyWith(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  String _shortDate(String yyyyMmDd) {
+    final dt = DateTime.parse(yyyyMmDd);
+    const months = [
+      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+    ];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stat chip
+// ---------------------------------------------------------------------------
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.label,
+    required this.amount,
+    required this.amountColor,
+  });
+
+  final String label;
+  final Decimal amount;
+  final Color amountColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: BalviaTheme.spaceSm,
+        vertical: BalviaTheme.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            AmountFormatter.formatCOP(amount),
+            style: BalviaTheme.bodyStyle(
+              color: amountColor,
+            ).copyWith(fontWeight: FontWeight.w700),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Budget card
+// Global budget card — teal tint, "$" icon, % right, bar, footer labels
 // ---------------------------------------------------------------------------
 
-class _BudgetCard extends StatelessWidget {
-  const _BudgetCard({
+class _GlobalBudgetCard extends StatelessWidget {
+  const _GlobalBudgetCard({
     required this.budget,
     required this.spent,
-    required this.categoryName,
     required this.onEdit,
     required this.onDelete,
   });
 
   final Budget budget;
   final Decimal spent;
-  final String categoryName;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    final pctDouble = budget.amount > Decimal.zero
+        ? (spent / budget.amount).toDouble() * 100.0
+        : 0.0;
+    final fraction = (pctDouble / 100.0).clamp(0.0, 1.0);
+    final barColor = cs.primary;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      color: BalviaTheme.surfaceTonal,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(BalviaTheme.spaceMd),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header row: icon + name + % + edit/delete
             Row(
               children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: BalviaTheme.seed.withValues(alpha: 0.15),
+                    borderRadius:
+                        BorderRadius.circular(BalviaTheme.radiusSm),
+                  ),
+                  child: const Icon(
+                    Icons.attach_money,
+                    color: BalviaTheme.seed,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: BalviaTheme.spaceSm),
                 Expanded(
                   child: Text(
-                    categoryName,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    'Global del seguimiento',
+                    style: BalviaTheme.bodyStyle(
+                      color: cs.onSurface,
+                    ).copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Editar',
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  onPressed: onEdit,
-                  visualDensity: VisualDensity.compact,
+                Text(
+                  '${pctDouble.toStringAsFixed(0)}%',
+                  style: BalviaTheme.bodyStyle(
+                    color: cs.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w700),
                 ),
-                IconButton(
-                  tooltip: 'Eliminar',
-                  icon: Icon(
-                    Icons.delete_outline,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  onPressed: onDelete,
-                  visualDensity: VisualDensity.compact,
+                _EditDeleteButtons(onEdit: onEdit, onDelete: onDelete),
+              ],
+            ),
+
+            const SizedBox(height: BalviaTheme.spaceSm),
+
+            // Progress bar.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: fraction,
+                minHeight: 8,
+                backgroundColor:
+                    cs.onSurface.withValues(alpha: 0.1),
+                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+              ),
+            ),
+
+            const SizedBox(height: BalviaTheme.spaceXs),
+
+            // Footer labels.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${AmountFormatter.formatCOP(spent)} gastados',
+                  style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+                ),
+                Text(
+                  '${AmountFormatter.formatCOP(budget.amount)} total',
+                  style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            BudgetProgressBar(
-              spent: spent,
-              budget: budget.amount,
-              warningPct: budget.alertThresholdWarning,
-              criticalPct: budget.alertThresholdCritical,
-            ),
-            if (budget.notes != null && budget.notes!.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                budget.notes!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -483,7 +602,270 @@ class _BudgetCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Budget form sheet (create / edit)
+// Category budget card — with alert badge and colored right note
+// ---------------------------------------------------------------------------
+
+class _CategoryBudgetCard extends StatelessWidget {
+  const _CategoryBudgetCard({
+    required this.budget,
+    required this.category,
+    required this.spent,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Budget budget;
+  final Category? category;
+  final Decimal spent;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    final pctDouble = budget.amount > Decimal.zero
+        ? (spent / budget.amount).toDouble() * 100.0
+        : 0.0;
+    final fraction = (pctDouble / 100.0).clamp(0.0, 1.0);
+
+    final warnDouble = budget.alertThresholdWarning.toDouble();
+    final critDouble = budget.alertThresholdCritical.toDouble();
+
+    final barColor = pctDouble >= critDouble
+        ? BalviaTheme.budgetExceeded
+        : pctDouble >= warnDouble
+        ? BalviaTheme.budgetWarning
+        : BalviaTheme.income;
+
+    final available = budget.amount - spent;
+
+    // Right note color and text based on threshold.
+    final Color noteColor;
+    final String noteText;
+    if (pctDouble >= critDouble) {
+      noteColor = BalviaTheme.expense;
+      final over = spent - budget.amount;
+      noteText = '-${AmountFormatter.formatCOP(over)} excedido';
+    } else if (pctDouble >= warnDouble) {
+      noteColor = BalviaTheme.budgetWarning;
+      noteText = '${AmountFormatter.formatCOP(available)} restante';
+    } else {
+      noteColor = BalviaTheme.income;
+      noteText = '${AmountFormatter.formatCOP(available)} disponible';
+    }
+
+    // Alert badge: only show if >= warning threshold.
+    Widget? badge;
+    if (pctDouble >= critDouble) {
+      badge = _AlertBadge(
+        icon: Icons.close,
+        pct: pctDouble,
+        color: BalviaTheme.expense,
+      );
+    } else if (pctDouble >= warnDouble) {
+      badge = _AlertBadge(
+        icon: Icons.arrow_upward,
+        pct: pctDouble,
+        color: BalviaTheme.budgetWarning,
+      );
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+        side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(BalviaTheme.spaceMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: avatar + name + (optional badge) + % + edit/delete
+            Row(
+              children: [
+                CategoryAvatar(category: category, radius: 18),
+                const SizedBox(width: BalviaTheme.spaceSm),
+                Expanded(
+                  child: Text(
+                    category?.name ?? 'Sin categoría',
+                    style: BalviaTheme.bodyStyle(
+                      color: cs.onSurface,
+                    ).copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (badge != null) ...[
+                  badge,
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  '${pctDouble.toStringAsFixed(0)}%',
+                  style: BalviaTheme.bodyStyle(
+                    color: barColor,
+                  ).copyWith(fontWeight: FontWeight.w700),
+                ),
+                _EditDeleteButtons(onEdit: onEdit, onDelete: onDelete),
+              ],
+            ),
+
+            const SizedBox(height: BalviaTheme.spaceSm),
+
+            // Bar.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: fraction,
+                minHeight: 8,
+                backgroundColor: cs.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+              ),
+            ),
+
+            const SizedBox(height: BalviaTheme.spaceXs),
+
+            // Footer.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${AmountFormatter.formatCOP(spent)} '
+                  'de ${AmountFormatter.formatCOP(budget.amount)}',
+                  style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+                ),
+                Text(
+                  noteText,
+                  style: BalviaTheme.captionStyle(
+                    color: noteColor,
+                  ).copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Alert badge (▲85% amber / ✕110% red)
+// ---------------------------------------------------------------------------
+
+class _AlertBadge extends StatelessWidget {
+  const _AlertBadge({
+    required this.icon,
+    required this.pct,
+    required this.color,
+  });
+
+  final IconData icon;
+  final double pct;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 2),
+          Text(
+            '${pct.toStringAsFixed(0)}%',
+            style: BalviaTheme.captionStyle(
+              color: color,
+            ).copyWith(fontWeight: FontWeight.w700, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edit/delete icon button row
+// ---------------------------------------------------------------------------
+
+class _EditDeleteButtons extends StatelessWidget {
+  const _EditDeleteButtons({required this.onEdit, required this.onDelete});
+
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Editar',
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          onPressed: onEdit,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+        ),
+        IconButton(
+          tooltip: 'Eliminar',
+          icon: Icon(Icons.delete_outline, size: 18, color: cs.error),
+          onPressed: onDelete,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Info banner (amber)
+// ---------------------------------------------------------------------------
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(BalviaTheme.spaceMd),
+      decoration: BoxDecoration(
+        color: BalviaTheme.budgetWarning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+        border: Border.all(
+          color: BalviaTheme.budgetWarning.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, color: BalviaTheme.budgetWarning, size: 18),
+          const SizedBox(width: BalviaTheme.spaceSm),
+          Expanded(
+            child: Text(
+              text,
+              style: BalviaTheme.captionStyle(
+                color: BalviaTheme.budgetWarning.withValues(alpha: 0.9),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Budget form sheet (create / edit) — unchanged logic
 // ---------------------------------------------------------------------------
 
 typedef _BudgetSaveCallback =
@@ -516,7 +898,6 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
   late TextEditingController _criticalCtrl;
   late TextEditingController _notesCtrl;
 
-  /// null means global (no category).
   String? _selectedCategoryId;
   bool _isGlobal = false;
   bool _isLoading = false;
@@ -585,7 +966,6 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      // HTTP 409 = duplicate category budget.
       final msg = apiErrorMessage(e);
       setState(() {
         _isLoading = false;
@@ -601,7 +981,6 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    // Only expense categories (budgets are for expenses).
     final expenseCats =
         widget.categories.where((c) => c.categoryType == 'expense').toList()
           ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
@@ -609,20 +988,21 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(BalviaTheme.radiusXl),
+        ),
       ),
       padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: BalviaTheme.spaceMd,
+        right: BalviaTheme.spaceMd,
+        top: BalviaTheme.spaceMd,
+        bottom: MediaQuery.of(context).viewInsets.bottom + BalviaTheme.spaceLg,
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Drag handle.
             Center(
               child: Container(
                 width: 40,
@@ -633,22 +1013,19 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: BalviaTheme.spaceMd),
             Text(
               widget.existing == null
                   ? 'Nuevo presupuesto'
                   : 'Editar presupuesto',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: BalviaTheme.titleStyle(color: cs.onSurface),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: BalviaTheme.spaceMd),
 
-            // Global toggle.
             SwitchListTile(
               value: _isGlobal,
               onChanged: widget.existing != null
-                  ? null // can't change global/category on edit
+                  ? null
                   : (v) => setState(() {
                       _isGlobal = v;
                       if (v) _selectedCategoryId = null;
@@ -660,7 +1037,6 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
               contentPadding: EdgeInsets.zero,
             ),
 
-            // Category picker (only when not global).
             if (!_isGlobal) ...[
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
@@ -672,17 +1048,17 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
                 hint: const Text('Seleccionar categoría'),
                 items: expenseCats
                     .map(
-                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                      (c) =>
+                          DropdownMenuItem(value: c.id, child: Text(c.name)),
                     )
                     .toList(),
                 onChanged: widget.existing != null
-                    ? null // can't change category on edit
+                    ? null
                     : (v) => setState(() => _selectedCategoryId = v),
               ),
             ],
             const SizedBox(height: 12),
 
-            // Amount.
             TextField(
               controller: _amountCtrl,
               keyboardType: TextInputType.number,
@@ -696,7 +1072,6 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
             ),
             const SizedBox(height: 12),
 
-            // Alert thresholds.
             Row(
               children: [
                 Expanded(
@@ -728,7 +1103,6 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
             ),
             const SizedBox(height: 12),
 
-            // Notes.
             TextField(
               controller: _notesCtrl,
               decoration: const InputDecoration(
@@ -738,7 +1112,7 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
               textCapitalization: TextCapitalization.sentences,
               maxLines: 2,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: BalviaTheme.spaceMd),
 
             if (_error != null)
               Padding(
