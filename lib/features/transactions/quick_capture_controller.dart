@@ -85,6 +85,18 @@ class QuickCaptureController extends Notifier<QuickCaptureState> {
     state = state.copyWith(rawDigits: next, error: null);
   }
 
+  /// Appends three zeros (",000" key — design system §4).
+  /// Multiplies the current amount by 1000 in effect (adds "000" suffix).
+  /// Capped at the same 10-digit maximum.
+  void appendThousands() {
+    final current = state.rawDigits;
+    if (current.isEmpty || current == '0') return;
+    const suffix = '000';
+    final next = current + suffix;
+    if (next.length > 10) return;
+    state = state.copyWith(rawDigits: next, error: null);
+  }
+
   /// Removes the last digit.
   void backspace() {
     final d = state.rawDigits;

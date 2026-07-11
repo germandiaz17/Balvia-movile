@@ -3,15 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/amount_formatter.dart';
 import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../data/models/account.dart';
 import '../../data/models/category.dart';
 import 'quick_capture_controller.dart';
 
-/// Opens the quick-capture bottom sheet and returns whether a transaction was
-/// saved successfully. Call from any widget that has a [WidgetRef].
-///
-/// The caller is responsible for refreshing dependent providers
-/// (e.g. accountsProvider) after a successful save.
+/// Opens the quick-capture bottom sheet. Returns whether a transaction was
+/// saved. Call from any widget that has a [WidgetRef].
 Future<bool> showQuickCaptureModal(
   BuildContext context,
   WidgetRef ref, {
@@ -32,7 +30,6 @@ Future<bool> showQuickCaptureModal(
     useSafeArea: true,
     backgroundColor: Colors.transparent,
     builder: (_) => ProviderScope(
-      // Override so each modal open starts with fresh state.
       overrides: [],
       child: _QuickCaptureSheet(accounts: accounts),
     ),
@@ -55,7 +52,6 @@ class _QuickCaptureSheetState extends ConsumerState<_QuickCaptureSheet> {
   void initState() {
     super.initState();
     _descController = TextEditingController();
-    // Pre-select the first account after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.accounts.isNotEmpty) {
         ref
@@ -86,29 +82,54 @@ class _QuickCaptureSheetState extends ConsumerState<_QuickCaptureSheet> {
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(BalviaTheme.radiusXl),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Drag handle
           _DragHandle(),
-          _TypeToggle(
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // Type segmented pill (Gasto / Ingreso / Transferencia)
+          _TypePill(
             current: state.transactionType,
             onChanged: (t) => ref
                 .read(quickCaptureControllerProvider.notifier)
                 .setTransactionType(t),
           ),
-          _AmountDisplay(rawDigits: state.rawDigits),
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // "Monto" overline label
+          Text(
+            'MONTO',
+            style: BalviaTheme.overlineStyle(color: BalviaTheme.inkMuted),
+          ),
+          const SizedBox(height: BalviaTheme.spaceXs),
+
+          // Hero amount display
+          _AmountDisplay(
+            rawDigits: state.rawDigits,
+            transactionType: state.transactionType,
+          ),
+
           if (state.error != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: BalviaTheme.spaceMd,
+                vertical: 4,
+              ),
               child: Text(
                 state.error!,
                 style: TextStyle(color: colorScheme.error, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // Category chips (horizontal scroll)
           _CategorySection(
             transactionType: state.transactionType,
             selectedId: state.selectedCategoryId,
@@ -116,35 +137,46 @@ class _QuickCaptureSheetState extends ConsumerState<_QuickCaptureSheet> {
                 .read(quickCaptureControllerProvider.notifier)
                 .selectCategory(id),
           ),
-          const SizedBox(height: 8),
-          _AccountSelector(
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // Account + description row
+          _AccountAndDescRow(
             accounts: widget.accounts,
-            selectedId: state.selectedAccountId,
-            onSelect: (id) => ref
+            selectedAccountId: state.selectedAccountId,
+            descController: _descController,
+            onAccountSelect: (id) => ref
                 .read(quickCaptureControllerProvider.notifier)
                 .selectAccount(id),
-          ),
-          const SizedBox(height: 8),
-          _DescriptionField(
-            controller: _descController,
-            onChanged: (v) => ref
+            onDescChanged: (v) => ref
                 .read(quickCaptureControllerProvider.notifier)
                 .setDescription(v),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // Keypad
           _NumericKeypad(
             onDigit: (d) => ref
                 .read(quickCaptureControllerProvider.notifier)
                 .appendDigit(d),
+            onThousands: () => ref
+                .read(quickCaptureControllerProvider.notifier)
+                .appendThousands(),
             onBackspace: () =>
                 ref.read(quickCaptureControllerProvider.notifier).backspace(),
+          ),
+          const SizedBox(height: BalviaTheme.spaceSm),
+
+          // Bottom row: mic (disabled) + Guardar
+          _BottomRow(
+            isLoading: state.isLoading,
             onSave: state.isLoading
                 ? null
                 : () =>
                       ref.read(quickCaptureControllerProvider.notifier).save(),
-            isSaving: state.isLoading,
           ),
-          const SizedBox(height: 16),
+          SizedBox(
+            height: MediaQuery.of(context).padding.bottom + BalviaTheme.spaceMd,
+          ),
         ],
       ),
     );
@@ -159,7 +191,7 @@ class _DragHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      padding: const EdgeInsets.only(top: BalviaTheme.spaceMd, bottom: 4),
       child: Container(
         width: 40,
         height: 4,
@@ -172,137 +204,110 @@ class _DragHandle extends StatelessWidget {
   }
 }
 
-class _TypeToggle extends StatelessWidget {
-  const _TypeToggle({required this.current, required this.onChanged});
+/// Pill-style segmented control for Gasto / Ingreso / Transferencia (mockup 14).
+///
+/// The active tab has a solid fill with text color:
+///   Gasto → expense red background
+///   Ingreso → income-green tinted background (uses primaryContainer teal)
+///   Transferencia → transfer blue
+class _TypePill extends StatelessWidget {
+  const _TypePill({required this.current, required this.onChanged});
   final String current;
   final ValueChanged<String> onChanged;
 
+  static const _tabs = [
+    ('expense', 'Gasto'),
+    ('income', 'Ingreso'),
+    ('transfer', 'Transferencia'),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ToggleChip(
-              label: 'Gasto',
-              icon: Icons.remove_circle_outline,
-              selected: current == 'expense',
-              selectedColor: scheme.errorContainer,
-              selectedForeground: scheme.onErrorContainer,
-              onTap: () => onChanged('expense'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _ToggleChip(
-              label: 'Ingreso',
-              icon: Icons.add_circle_outline,
-              selected: current == 'income',
-              selectedColor: scheme.primaryContainer,
-              selectedForeground: scheme.onPrimaryContainer,
-              onTap: () => onChanged('income'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleChip extends StatelessWidget {
-  const _ToggleChip({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.selectedColor,
-    required this.selectedForeground,
-    required this.onTap,
-  });
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final Color selectedColor;
-  final Color selectedForeground;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: BalviaTheme.spaceMd),
+      child: Container(
+        padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: selected ? selectedColor : scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(100),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: selected ? selectedForeground : scheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: selected ? selectedForeground : scheme.onSurfaceVariant,
+          children: _tabs.map((tab) {
+            final selected = current == tab.$1;
+            final activeColor = _activeColor(tab.$1);
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onChanged(tab.$1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  decoration: BoxDecoration(
+                    color: selected ? activeColor : Colors.transparent,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    tab.$2,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      color: selected ? Colors.white : cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            );
+          }).toList(),
         ),
       ),
     );
   }
+
+  Color _activeColor(String type) => switch (type) {
+    'expense' => BalviaTheme.expense,
+    'income' => BalviaTheme.seed,
+    'transfer' => BalviaTheme.transfer,
+    _ => BalviaTheme.expense,
+  };
 }
 
+/// Large colored amount display (mockup 14 — amount is colored by type).
 class _AmountDisplay extends StatelessWidget {
-  const _AmountDisplay({required this.rawDigits});
+  const _AmountDisplay({
+    required this.rawDigits,
+    required this.transactionType,
+  });
   final String rawDigits;
+  final String transactionType;
 
   @override
   Widget build(BuildContext context) {
+    final color = BalviaTheme.colorForType(transactionType);
     final displayText = rawDigits.isEmpty
         ? '0'
         : AmountFormatter.formatDisplay(rawDigits);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Text(
-            'COP ',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w600,
-            ),
+      padding: const EdgeInsets.symmetric(horizontal: BalviaTheme.spaceMd),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          '\$$displayText',
+          style: TextStyle(
+            fontSize: 48,
+            fontWeight: FontWeight.bold,
+            color: color,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                displayText,
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
+/// Category chips with ✨ "sugerida" style for the first chip (visual only).
 class _CategorySection extends ConsumerWidget {
   const _CategorySection({
     required this.transactionType,
@@ -319,19 +324,10 @@ class _CategorySection extends ConsumerWidget {
 
     return categoriesAsync.when(
       loading: () => const SizedBox(
-        height: 48,
+        height: 44,
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Text(
-          'No se pudieron cargar las categorías',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.error,
-            fontSize: 12,
-          ),
-        ),
-      ),
+      error: (e, _) => const SizedBox.shrink(),
       data: (all) {
         final filtered =
             all
@@ -348,15 +344,21 @@ class _CategorySection extends ConsumerWidget {
           height: 44,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(
+              horizontal: BalviaTheme.spaceMd,
+            ),
             itemCount: filtered.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 8),
+            separatorBuilder: (context, i) =>
+                const SizedBox(width: BalviaTheme.spaceSm),
             itemBuilder: (_, i) {
               final cat = filtered[i];
               final isSelected = cat.id == selectedId;
+              // First chip gets the ✨ "sugerida" visual (design system §5).
+              final isSuggested = i == 0 && selectedId == null;
               return _CategoryChip(
                 category: cat,
                 selected: isSelected,
+                suggested: isSuggested,
                 onTap: () => onSelect(isSelected ? null : cat.id),
               );
             },
@@ -371,120 +373,181 @@ class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
     required this.category,
     required this.selected,
+    required this.suggested,
     required this.onTap,
   });
   final Category category;
   final bool selected;
+  final bool suggested;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
+    Color bg;
+    Color fg;
+    Border? border;
+
+    if (selected) {
+      bg = scheme.primaryContainer;
+      fg = scheme.onPrimaryContainer;
+      border = Border.all(color: scheme.primary, width: 1.5);
+    } else if (suggested) {
+      bg = scheme.surfaceContainerHighest;
+      fg = scheme.onSurfaceVariant;
+      border = Border.all(color: scheme.outline.withValues(alpha: 0.5));
+    } else {
+      bg = scheme.surfaceContainerHighest;
+      fg = scheme.onSurfaceVariant;
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected
-              ? scheme.primaryContainer
-              : scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20),
-          border: selected
-              ? Border.all(color: scheme.primary, width: 1.5)
-              : null,
+          color: bg,
+          borderRadius: BorderRadius.circular(100),
+          border: border,
         ),
-        child: Text(
-          category.name,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-            color: selected
-                ? scheme.onPrimaryContainer
-                : scheme.onSurfaceVariant,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (suggested)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Text('✨', style: TextStyle(fontSize: 12, color: fg)),
+              ),
+            Text(
+              category.name,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: fg,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _AccountSelector extends StatelessWidget {
-  const _AccountSelector({
+/// Account chip + description chip side by side (mockup 14 bottom row before keypad).
+class _AccountAndDescRow extends StatelessWidget {
+  const _AccountAndDescRow({
     required this.accounts,
-    required this.selectedId,
-    required this.onSelect,
+    required this.selectedAccountId,
+    required this.descController,
+    required this.onAccountSelect,
+    required this.onDescChanged,
   });
+
   final List<Account> accounts;
-  final String? selectedId;
-  final ValueChanged<String> onSelect;
+  final String? selectedAccountId;
+  final TextEditingController descController;
+  final ValueChanged<String> onAccountSelect;
+  final ValueChanged<String> onDescChanged;
 
   @override
   Widget build(BuildContext context) {
-    if (accounts.length == 1) {
-      // Only one account — show it as non-interactive label.
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Icon(
-              Icons.account_balance_wallet_outlined,
-              size: 16,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              accounts.first.name,
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final cs = Theme.of(context).colorScheme;
 
-    final selected = accounts.firstWhere(
-      (a) => a.id == selectedId,
-      orElse: () => accounts.first,
-    );
+    final selectedAccount = accounts.isNotEmpty
+        ? accounts.firstWhere(
+            (a) => a.id == selectedAccountId,
+            orElse: () => accounts.first,
+          )
+        : null;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GestureDetector(
-        onTap: () => _pickAccount(context),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.account_balance_wallet_outlined,
-                size: 16,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                selected.name,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurface,
+      padding: const EdgeInsets.symmetric(horizontal: BalviaTheme.spaceMd),
+      child: Row(
+        children: [
+          // Account chip
+          if (selectedAccount != null)
+            Flexible(
+              child: GestureDetector(
+                onTap: () => _pickAccount(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: BalviaTheme.spaceSm,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.attach_money,
+                        size: 16,
+                        color: BalviaTheme.seed,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        selectedAccount.name,
+                        style: BalviaTheme.bodyStyle(color: cs.onSurface),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        size: 18,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.arrow_drop_down,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          const SizedBox(width: BalviaTheme.spaceSm),
+          // Description chip
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _showDescInput(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: BalviaTheme.spaceSm,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 16,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        descController.text.isEmpty
+                            ? 'Descripción'
+                            : descController.text,
+                        style: BalviaTheme.bodyStyle(
+                          color: descController.text.isEmpty
+                              ? cs.onSurfaceVariant
+                              : cs.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -494,8 +557,47 @@ class _AccountSelector extends StatelessWidget {
       context: context,
       builder: (_) => _AccountPickerSheet(accounts: accounts),
     ).then((id) {
-      if (id != null) onSelect(id);
+      if (id != null) onAccountSelect(id);
     });
+  }
+
+  void _showDescInput(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 24,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Descripción', style: Theme.of(ctx).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descController,
+              autofocus: true,
+              onChanged: onDescChanged,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Ej: Almuerzo corrientazo',
+                border: OutlineInputBorder(),
+                filled: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Listo'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -522,7 +624,7 @@ class _AccountPickerSheet extends StatelessWidget {
               leading: const Icon(Icons.account_balance_wallet_outlined),
               title: Text(a.name),
               subtitle: Text(
-                'COP ${a.currentBalance.toStringAsFixed(0)}',
+                AmountFormatter.formatCOP(a.currentBalance),
                 style: const TextStyle(fontSize: 12),
               ),
               onTap: () => Navigator.of(context).pop(a.id),
@@ -535,137 +637,61 @@ class _AccountPickerSheet extends StatelessWidget {
   }
 }
 
-class _DescriptionField extends StatelessWidget {
-  const _DescriptionField({required this.controller, required this.onChanged});
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
+// ---------------------------------------------------------------------------
+// Numeric keypad (mockup 14 — 3 columns + ",000" + "⌫")
+// ---------------------------------------------------------------------------
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        decoration: const InputDecoration(
-          hintText: 'Descripción (opcional)',
-          isDense: true,
-          border: OutlineInputBorder(),
-          filled: true,
-        ),
-        maxLines: 1,
-        textCapitalization: TextCapitalization.sentences,
-      ),
-    );
-  }
-}
-
-/// A custom numeric keypad optimised for speed. Digits are large tap targets;
-/// backspace is on the right; the save button is prominent and green.
+/// Custom numeric keypad with:
+///   - 1–9 digits
+///   - ",000" key (appends three zeros — design system §4)
+///   - 0 key
+///   - ⌫ backspace key
 class _NumericKeypad extends StatelessWidget {
   const _NumericKeypad({
     required this.onDigit,
+    required this.onThousands,
     required this.onBackspace,
-    required this.onSave,
-    required this.isSaving,
   });
+
   final ValueChanged<String> onDigit;
+  final VoidCallback onThousands;
   final VoidCallback onBackspace;
-  final VoidCallback? onSave;
-  final bool isSaving;
 
   static const _rows = [
-    ['7', '8', '9'],
-    ['4', '5', '6'],
     ['1', '2', '3'],
-    ['', '0', '⌫'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    [',000', '0', '⌫'],
   ];
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Digit grid — 3 columns.
-          Expanded(
-            flex: 3,
-            child: Column(
-              children: _rows.map((row) {
-                return Row(
-                  children: row.map((key) {
-                    if (key.isEmpty) return const Expanded(child: SizedBox());
-                    return Expanded(
-                      child: _KeypadButton(
-                        label: key,
-                        onTap: key == '⌫' ? onBackspace : () => onDigit(key),
-                      ),
-                    );
-                  }).toList(),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Save button — tall, on the right.
-          Expanded(
-            child: SizedBox(
-              height:
-                  _rowHeight * _rows.length + _rowSpacing * (_rows.length - 1),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: scheme.primary,
-                  foregroundColor: scheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: EdgeInsets.zero,
+      padding: const EdgeInsets.symmetric(horizontal: BalviaTheme.spaceMd),
+      child: Column(
+        children: _rows.map((row) {
+          return Row(
+            children: row.map((key) {
+              return Expanded(
+                child: _KeypadKey(
+                  label: key,
+                  onTap: switch (key) {
+                    '⌫' => onBackspace,
+                    ',000' => onThousands,
+                    _ => () => onDigit(key),
+                  },
                 ),
-                onPressed: onSave,
-                child: isSaving
-                    ? SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: scheme.onPrimary,
-                        ),
-                      )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check_rounded,
-                            size: 28,
-                            color: scheme.onPrimary,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Guardar',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: scheme.onPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ),
-        ],
+              );
+            }).toList(),
+          );
+        }).toList(),
       ),
     );
   }
 }
 
-const _rowHeight = 56.0;
-const _rowSpacing = 4.0;
-
-class _KeypadButton extends StatelessWidget {
-  const _KeypadButton({required this.label, required this.onTap});
+class _KeypadKey extends StatelessWidget {
+  const _KeypadKey({required this.label, required this.onTap});
   final String label;
   final VoidCallback onTap;
 
@@ -673,33 +699,119 @@ class _KeypadButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isBackspace = label == '⌫';
+    final isThousands = label == ',000';
+
+    Color bgColor;
+    Widget child;
+
+    if (isBackspace) {
+      bgColor = scheme.errorContainer.withValues(alpha: 0.5);
+      child = Icon(Icons.backspace_outlined, size: 22, color: scheme.error);
+    } else if (isThousands) {
+      bgColor = scheme.surfaceContainerHighest;
+      child = Text(
+        ',000',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurface,
+        ),
+      );
+    } else {
+      bgColor = scheme.surfaceContainerHighest;
+      child = Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w500),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.all(_rowSpacing / 2),
+      padding: const EdgeInsets.all(3),
       child: SizedBox(
-        height: _rowHeight,
+        height: 56,
         child: Material(
-          color: isBackspace
-              ? scheme.errorContainer.withAlpha(120)
-              : scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+          color: bgColor,
+          borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
           child: InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
             onTap: onTap,
-            child: Center(
-              child: isBackspace
-                  ? Icon(
-                      Icons.backspace_outlined,
-                      size: 22,
-                      color: scheme.error,
+            child: Center(child: child),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bottom row: mic button (disabled) + Guardar button
+// ---------------------------------------------------------------------------
+
+class _BottomRow extends StatelessWidget {
+  const _BottomRow({required this.isLoading, required this.onSave});
+  final bool isLoading;
+  final VoidCallback? onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: BalviaTheme.spaceMd),
+      child: Row(
+        children: [
+          // Mic button — disabled with "Próximamente" tooltip
+          Tooltip(
+            message: 'Próximamente',
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: cs.outlineVariant),
+                color: cs.surfaceContainerHighest,
+              ),
+              child: Icon(
+                Icons.mic_outlined,
+                color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: BalviaTheme.spaceMd),
+          // Guardar button — wide
+          Expanded(
+            child: FilledButton(
+              onPressed: onSave,
+              style: FilledButton.styleFrom(
+                backgroundColor: BalviaTheme.seed,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+                ),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
-                  : Text(
-                      label,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w500),
+                  : const Text(
+                      'Guardar',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
