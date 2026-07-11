@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../../core/sync_providers.dart';
 import '../../data/models/transaction.dart';
 
 /// State for the quick-capture modal.
@@ -144,8 +145,12 @@ class QuickCaptureController extends Notifier<QuickCaptureState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final repo = ref.read(transactionRepositoryProvider);
-      final tx = await repo.create(
+      // 1. Write to local DB immediately (offline-first; no network wait).
+      // The active tracking period is needed to anchor the transaction locally.
+      final period = await ref.read(activeTrackingPeriodProvider.future);
+      final localRepo = ref.read(localTransactionRepoProvider);
+      final tx = await localRepo.create(
+        trackingPeriodId: period.id,
         accountId: s.selectedAccountId!,
         transactionType: s.transactionType,
         amount: amount,
@@ -153,6 +158,9 @@ class QuickCaptureController extends Notifier<QuickCaptureState> {
         description: s.description.trim().isEmpty ? null : s.description.trim(),
       );
       state = state.copyWith(isLoading: false, savedTransaction: tx);
+
+      // 2. Fire-and-forget push so the outbox row reaches the server if online.
+      ref.read(syncControllerProvider.notifier).syncInBackground();
     } catch (e) {
       state = state.copyWith(isLoading: false, error: _extractError(e));
     }

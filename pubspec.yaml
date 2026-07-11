@@ -40,6 +40,15 @@ dependencies:
   go_router: ^17.3.0
   decimal: ^3.2.4
 
+  # Local database — Drift (SQLite) + Flutter bindings.
+  drift: ^2.23.1
+  sqlite3_flutter_libs: ^0.5.28
+  path_provider: ^2.1.5
+  path: ^1.9.1
+
+  # UUID generation for client_id in the outbox.
+  uuid: ^4.5.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -50,6 +59,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  # Drift code generation.
+  drift_dev: ^2.23.1
+  build_runner: ^2.4.15
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
