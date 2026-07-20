@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <!-- FOREGROUND_SERVICE: keeps the overlay alive when the app is in background. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <!-- FOREGROUND_SERVICE_SPECIAL_USE: required (Android 14+) for the "specialUse" FGS type
+         below — the overlay bubble isn't screen-capture (mediaProjection), so that type doesn't
+         apply and its stricter permission requirements caused a SecurityException at runtime. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <!-- usesCleartextTraffic: dev-only, the backend runs over plain HTTP on the
          LAN. Replace with HTTPS (and drop this flag) once the API is deployed. -->
     <application
@@ -36,10 +40,14 @@
 
         <!-- Overlay foreground service provided by flutter_overlay_window. -->
         <service
-            android:name="com.example.flutter_overlay_window.OverlayService"
+            android:name="flutter.overlay.window.flutter_overlay_window.OverlayService"
             android:exported="false"
-            android:foregroundServiceType="mediaProjection"
-            android:permission="android.permission.FOREGROUND_SERVICE"/>
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.FOREGROUND_SERVICE">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="floating_quick_capture_bubble"/>
+        </service>
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
