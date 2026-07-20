@@ -72,6 +72,16 @@ dev_dependencies:
   drift_dev: ^2.23.1
   build_runner: ^2.4.15
 
+# LOCAL PATCH (temporary): flutter_overlay_window 0.4.5's OverlayService.java uses
+# FlutterTextureView for the overlay's FlutterView, whose backing surface never gets
+# sized on this Android version/emulator (surface stays 0x0 per `dumpsys window`,
+# confirmed independent of the Impeller/Skia renderer choice and independent of the
+# overlay's requested size). Vendored copy in third_party/ swaps it for
+# FlutterSurfaceView, a one-line change to the plugin's native Android side.
+dependency_overrides:
+  flutter_overlay_window:
+    path: third_party/flutter_overlay_window
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
