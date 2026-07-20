@@ -158,11 +158,19 @@ class QuickCaptureController extends Notifier<QuickCaptureState> {
 
     try {
       // 1. Write to local DB immediately (offline-first; no network wait).
-      // The active tracking period is needed to anchor the transaction locally.
-      final period = await ref.read(activeTrackingPeriodProvider.future);
+      // Anchor the transaction to the LOCAL active period — the same one the
+      // Home/Transacciones lists filter by — falling back to the network only
+      // when Drift has no period yet (first launch before the first pull).
+      // Anchoring to the network period risked a period-id mismatch that made
+      // the saved expense invisible to the local-first lists.
+      final localPeriod = await ref
+          .read(localActiveTrackingPeriodProvider.future);
+      final periodId =
+          localPeriod?.id ??
+          (await ref.read(activeTrackingPeriodProvider.future)).id;
       final localRepo = ref.read(localTransactionRepoProvider);
       final tx = await localRepo.create(
-        trackingPeriodId: period.id,
+        trackingPeriodId: periodId,
         accountId: s.selectedAccountId!,
         transactionType: s.transactionType,
         amount: amount,

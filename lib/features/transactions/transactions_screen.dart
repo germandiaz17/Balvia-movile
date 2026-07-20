@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/amount_formatter.dart';
 import '../../core/api_error.dart';
 import '../../core/providers.dart';
+import '../../core/sync_providers.dart';
 import '../../core/theme.dart';
 import '../../data/models/account.dart';
 import '../../data/models/category.dart';
@@ -93,7 +94,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final txsAsync = ref.watch(allTransactionsProvider);
+    // Offline-first: read from Drift (same source as Home) so locally saved
+    // expenses — including ones still pending push — show up immediately.
+    final txsAsync = ref.watch(localTransactionsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
     final accountsAsync = ref.watch(accountsForTransactionsProvider);
 
@@ -234,6 +237,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   }
 
   void _refresh(WidgetRef ref) {
+    ref.read(syncControllerProvider.notifier).syncInBackground();
+    ref.invalidate(localTransactionsProvider);
     ref.invalidate(allTransactionsProvider);
     ref.invalidate(recentTransactionsProvider);
     ref.invalidate(activeTrackingPeriodProvider);
@@ -318,6 +323,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   }
 
   void _invalidateAfterMutation(WidgetRef ref) {
+    // Edits/deletes go through the network repo; pull the change back into
+    // Drift so the local-first list reflects it.
+    ref.read(syncControllerProvider.notifier).syncInBackground();
+    ref.invalidate(localTransactionsProvider);
     ref.invalidate(allTransactionsProvider);
     ref.invalidate(recentTransactionsProvider);
     ref.invalidate(activeTrackingPeriodProvider);

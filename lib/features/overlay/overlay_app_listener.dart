@@ -42,8 +42,14 @@ class _OverlayAppListenerState extends ConsumerState<OverlayAppListener> {
       // Trigger a background sync so the pending overlay transaction
       // gets pushed to the server, and pull fresh data.
       ref.read(syncControllerProvider.notifier).syncInBackground();
-      // Invalidate key providers so the UI refreshes on next read.
+      // Invalidate key providers so the UI refreshes on next read. The
+      // Drift-backed streams must be invalidated explicitly: the overlay
+      // writes through its OWN database connection, so the main engine's
+      // watch() queries never see those inserts on their own.
       ref.invalidate(activeTrackingPeriodProvider);
+      ref.invalidate(localActiveTrackingPeriodProvider);
+      ref.invalidate(localTransactionsProvider);
+      ref.invalidate(localAccountsProvider);
     }
   }
 

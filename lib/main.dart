@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'core/theme_mode_provider.dart';
+import 'features/overlay/overlay_app_listener.dart';
 
 // Secondary entry-point for the overlay FlutterEngine.
 // Imported here so the @pragma("vm:entry-point") annotation is visible to
@@ -31,6 +32,10 @@ class BalviaApp extends ConsumerWidget {
       darkTheme: BalviaTheme.dark(),
       themeMode: themeMode,
       routerConfig: router,
+      // Listens for the bubble overlay's "refresh" messages (e.g. an expense
+      // saved from the bubble) and triggers a background sync in response.
+      builder: (context, child) =>
+          OverlayAppListener(child: child ?? const SizedBox.shrink()),
     );
   }
 }

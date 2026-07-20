@@ -5,6 +5,10 @@
 //  - Offline-first read providers that replace the former network providers
 //  - SyncController — triggers pull/push; tracks last result
 
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Use 'db' prefix to avoid name collisions with domain model classes
@@ -159,9 +163,19 @@ class SyncController extends Notifier<SyncState> {
     try {
       final engine = ref.read(syncEngineProvider);
       final result = await engine.sync();
+      // Sync failures are otherwise only visible as a status icon — always
+      // leave a trace in the log so they can be diagnosed.
+      if (result.isError) {
+        debugPrint('Sync failed: ${result.error}');
+      } else if (result.pullCount > 0) {
+        // The overlay bubble runs in a separate engine with its own data
+        // snapshot — tell it to reload whenever a pull landed new rows.
+        await _notifyOverlay();
+      }
       state = state.copyWith(isSyncing: false, lastResult: result);
       return result;
     } catch (e) {
+      debugPrint('Sync crashed: $e');
       final result = SyncResult(error: e.toString());
       state = state.copyWith(isSyncing: false, lastResult: result);
       return result;
@@ -172,6 +186,17 @@ class SyncController extends Notifier<SyncState> {
   /// instantly without awaiting the network round-trip.
   void syncInBackground() {
     sync(); // intentionally not awaited
+  }
+
+  /// Best-effort 'refresh' message to the overlay bubble's engine. No-op when
+  /// the overlay is not showing or the platform has no overlay support.
+  Future<void> _notifyOverlay() async {
+    if (!Platform.isAndroid) return;
+    try {
+      if (await FlutterOverlayWindow.isActive()) {
+        await FlutterOverlayWindow.shareData('refresh');
+      }
+    } catch (_) {}
   }
 }
 

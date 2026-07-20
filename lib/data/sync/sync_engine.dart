@@ -26,6 +26,7 @@
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:uuid/uuid.dart';
 
 import '../local/app_database.dart' as drift;
@@ -126,42 +127,49 @@ class SyncEngine {
   }
 
   /// Upserts all rows from a pull page into the local DB atomically.
+  ///
+  /// Individual malformed rows are logged and skipped rather than aborting
+  /// the whole page: one bad row must never wedge the entire sync forever
+  /// (the pull cursor only advances when the page applies).
   Future<int> _applyPull(PullResponse pull) async {
     int count = 0;
 
+    Future<void> applyAll(
+      String entity,
+      List<Map<String, dynamic>> rows,
+      Future<void> Function(Map<String, dynamic>) upsert,
+    ) async {
+      for (final row in rows) {
+        try {
+          await upsert(row);
+          count++;
+        } catch (e) {
+          debugPrint('Sync: skipping bad $entity row ${row['id']}: $e');
+        }
+      }
+    }
+
     await _database.transaction(() async {
-      for (final row in pull.trackingPeriods) {
-        await _upsertTrackingPeriod(row);
-        count++;
-      }
-      for (final row in pull.accounts) {
-        await _upsertAccount(row);
-        count++;
-      }
-      for (final row in pull.categories) {
-        await _upsertCategory(row);
-        count++;
-      }
-      for (final row in pull.transactions) {
-        await _upsertTransaction(row);
-        count++;
-      }
-      for (final row in pull.budgets) {
-        await _upsertBudget(row);
-        count++;
-      }
-      for (final row in pull.savingsGoals) {
-        await _upsertSavingsGoal(row);
-        count++;
-      }
-      for (final row in pull.goalContributions) {
-        await _upsertGoalContribution(row);
-        count++;
-      }
-      for (final row in pull.recurringTransactions) {
-        await _upsertRecurringTransaction(row);
-        count++;
-      }
+      await applyAll(
+        'tracking_period',
+        pull.trackingPeriods,
+        _upsertTrackingPeriod,
+      );
+      await applyAll('account', pull.accounts, _upsertAccount);
+      await applyAll('category', pull.categories, _upsertCategory);
+      await applyAll('transaction', pull.transactions, _upsertTransaction);
+      await applyAll('budget', pull.budgets, _upsertBudget);
+      await applyAll('savings_goal', pull.savingsGoals, _upsertSavingsGoal);
+      await applyAll(
+        'goal_contribution',
+        pull.goalContributions,
+        _upsertGoalContribution,
+      );
+      await applyAll(
+        'recurring_transaction',
+        pull.recurringTransactions,
+        _upsertRecurringTransaction,
+      );
     });
 
     return count;
@@ -268,7 +276,9 @@ class SyncEngine {
     await _database.categoriesDao.upsert(
       drift.CategoriesCompanion(
         id: Value(row['id'] as String),
-        userId: Value(row['user_id'] as String),
+        // System categories belong to no user (user_id is null on the wire);
+        // the local column is NOT NULL, so store them under ''.
+        userId: Value(row['user_id'] as String? ?? ''),
         parentId: Value(row['parent_id'] as String?),
         name: Value(row['name'] as String),
         categoryType: Value(row['category_type'] as String),
@@ -530,8 +540,13 @@ class SyncEngine {
     );
   }
 
-  /// A "local-only" transaction has a locally-generated id (starts with 'local-').
-  bool _isLocalOnly(drift.Transaction t) => t.id.startsWith('local-');
+  /// A "local-only" transaction has a locally-generated id — i.e. anything
+  /// that is not a server-assigned UUID. The app generates `local-<uuid>` ids
+  /// and older overlay builds generated `ov-<millis>`. Classifying these as
+  /// updates would send a non-UUID entity_id to the server; before the
+  /// per-item tolerance fix that 400'd the WHOLE batch and wedged the outbox.
+  bool _isLocalOnly(drift.Transaction t) =>
+      t.id.startsWith('local-') || t.id.startsWith('ov-');
 
   /// Stable client_ref for a row — used to correlate push results.
   String _clientRef(drift.Transaction t) => 'tx-${t.id}';
