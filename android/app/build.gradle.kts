@@ -24,8 +24,11 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         ndk {
-            // sqlite3_flutter_libs only ships ARM libs; exclude x86_64 to avoid missing .so errors.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // x86_64 is required for development on x86_64 emulators. The original
+            // reason for excluding it (sqlite3_flutter_libs shipping no x86_64 .so)
+            // no longer holds: sqlite3-native-library 3.52.0+ ships all three ABIs
+            // (verified by inspecting the AAR's jni/ folder).
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 
