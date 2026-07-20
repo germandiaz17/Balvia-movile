@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/providers.dart';
+import '../../core/sync_providers.dart';
 import '../../data/models/user.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
@@ -25,6 +27,23 @@ class AuthController extends Notifier<AuthState> {
     return const AuthState(AuthStatus.unknown);
   }
 
+  /// SharedPreferences key recording which user's data lives in the local DB.
+  static const _kLocalDataOwnerKey = 'local_data_owner_user_id';
+
+  /// Ensures the local DB belongs to [user]. If another user's data (or an
+  /// unknown owner's) is cached, wipe it — including the sync cursor — so the
+  /// next pull re-downloads this user's data from scratch. Without this, a
+  /// user switch both leaks the previous user's rows and leaves a cursor that
+  /// makes the pull skip anything older than the previous sync.
+  Future<void> _adoptLocalData(User user) async {
+    final prefs = await SharedPreferences.getInstance();
+    final owner = prefs.getString(_kLocalDataOwnerKey);
+    if (owner != user.id) {
+      await ref.read(appDatabaseProvider).clearAllData();
+      await prefs.setString(_kLocalDataOwnerKey, user.id);
+    }
+  }
+
   Future<void> _bootstrap() async {
     final token = await ref.read(tokenStorageProvider).accessToken();
     if (token == null) {
@@ -33,6 +52,7 @@ class AuthController extends Notifier<AuthState> {
     }
     try {
       final user = await ref.read(authRepositoryProvider).me();
+      await _adoptLocalData(user);
       state = AuthState(AuthStatus.authenticated, user);
     } catch (_) {
       state = const AuthState(AuthStatus.unauthenticated);
@@ -43,6 +63,7 @@ class AuthController extends Notifier<AuthState> {
     final user = await ref
         .read(authRepositoryProvider)
         .login(email: email, password: password);
+    await _adoptLocalData(user);
     state = AuthState(AuthStatus.authenticated, user);
   }
 
@@ -50,6 +71,7 @@ class AuthController extends Notifier<AuthState> {
     final user = await ref
         .read(authRepositoryProvider)
         .register(email: email, password: password, fullName: fullName);
+    await _adoptLocalData(user);
     state = AuthState(AuthStatus.authenticated, user);
   }
 

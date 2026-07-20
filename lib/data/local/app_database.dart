@@ -229,6 +229,20 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  /// Wipes every row in every table (including the sync cursor).
+  ///
+  /// Called when the authenticated user changes: the local DB is a cache of
+  /// ONE user's data, and the pull cursor is device-global — keeping another
+  /// user's rows would both leak data across accounts and make the next pull
+  /// skip everything older than the previous user's cursor.
+  Future<void> clearAllData() async {
+    await transaction(() async {
+      for (final table in allTables) {
+        await delete(table).go();
+      }
+    });
+  }
 }
 
 /// Opens a connection to the app's SQLite file.
