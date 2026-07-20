@@ -40,10 +40,9 @@ List<Category> mostUsedExpenseCategories(
       .map((c) => c.id)
       .toSet();
 
-  final ranked = counts.entries
-      .where((e) => expenseCategoryIds.contains(e.key))
-      .toList()
-    ..sort((a, b) => b.value.compareTo(a.value));
+  final ranked =
+      counts.entries.where((e) => expenseCategoryIds.contains(e.key)).toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
 
   final topIds = ranked.take(limit).map((e) => e.key).toSet();
   final topCategories = allCategories
@@ -60,9 +59,7 @@ List<Category> mostUsedExpenseCategories(
   // Fill remaining slots with other expense categories not yet in top.
   if (topCategories.length < limit) {
     final extra = allCategories
-        .where(
-          (c) => c.categoryType == 'expense' && !topIds.contains(c.id),
-        )
+        .where((c) => c.categoryType == 'expense' && !topIds.contains(c.id))
         .take(limit - topCategories.length);
     topCategories.addAll(extra);
   }
@@ -100,4 +97,45 @@ bool isValidColorHex(String hex) {
   final clean = hex.replaceAll('#', '');
   if (clean.length != 6 && clean.length != 8) return false;
   return RegExp(r'^[0-9A-Fa-f]+$').hasMatch(clean);
+}
+
+// ---------------------------------------------------------------------------
+// Bubble / overlay window geometry (all values in dp)
+// ---------------------------------------------------------------------------
+
+/// Clamps the collapsed bubble height to the valid range [44, 88] dp.
+double clampBubbleSize(double size) => size.clamp(44.0, 88.0);
+
+/// Width of the collapsed half-pill bubble for a given height ("horizontal
+/// tube": flat edge against the screen edge, rounded semicircle inward).
+int bubbleWidth(double size) => (size * 1.55).round();
+
+/// Extra padding around the bubble inside its overlay window (room for the
+/// drop shadow; mirrors the historical 56dp bubble / 66dp window ratio).
+const int kBubbleWindowPadding = 10;
+
+/// Overlay window width for the collapsed bubble.
+int collapsedWindowWidth(double size) =>
+    bubbleWidth(size) + kBubbleWindowPadding;
+
+/// Overlay window height for the collapsed bubble.
+int collapsedWindowHeight(double size) => size.round() + kBubbleWindowPadding;
+
+/// Offset (dp) at which the expanded capture card must be placed so it sits
+/// horizontally centered and in the upper half of the screen.
+///
+/// Coordinate semantics: the overlay window keeps the gravity it was created
+/// with (CENTER|RIGHT), so `x` is the margin from the RIGHT screen edge and
+/// `y` is the offset from the VERTICAL CENTER (negative = up).
+({int x, int y}) expandedOverlayOffset({
+  required double screenW,
+  required double screenH,
+  required int cardW,
+  required int cardH,
+  int topMargin = 48,
+}) {
+  final x = ((screenW - cardW) / 2).round();
+  final y = (-(screenH / 2) + topMargin + cardH / 2).round();
+  // x == -1 collides with the plugin's MATCH_PARENT sentinel; clamp to >= 0.
+  return (x: x < 0 ? 0 : x, y: y);
 }

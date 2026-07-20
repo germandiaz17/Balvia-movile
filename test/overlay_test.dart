@@ -18,7 +18,12 @@ import 'package:decimal/decimal.dart';
 // Helpers
 // ---------------------------------------------------------------------------
 
-Category _cat(String id, String name, {String type = 'expense', int order = 0}) {
+Category _cat(
+  String id,
+  String name, {
+  String type = 'expense',
+  int order = 0,
+}) {
   return Category(
     id: id,
     name: name,
@@ -92,10 +97,7 @@ void main() {
     });
 
     test('ignores categories not in allCategories', () {
-      final txs = [
-        _tx('unknown-cat'),
-        _tx('cat-transport'),
-      ];
+      final txs = [_tx('unknown-cat'), _tx('cat-transport')];
       final result = mostUsedExpenseCategories(txs, allCats, limit: 3);
       // unknown-cat excluded; cat-transport first; backfill with others
       expect(result.any((c) => c.id == 'unknown-cat'), isFalse);
@@ -202,11 +204,7 @@ void main() {
 
     test('returns false when backgroundedAt is null', () {
       expect(
-        shouldAutoOff(
-          backgroundedAt: null,
-          autoOffMinutes: 5,
-          now: now,
-        ),
+        shouldAutoOff(backgroundedAt: null, autoOffMinutes: 5, now: now),
         isFalse,
       );
     });
@@ -238,18 +236,13 @@ void main() {
     test('returns true at exactly the threshold', () {
       final exact = DateTime.utc(2026, 7, 10, 11, 50, 0); // exactly 10 min ago
       expect(
-        shouldAutoOff(
-          backgroundedAt: exact,
-          autoOffMinutes: 10,
-          now: now,
-        ),
+        shouldAutoOff(backgroundedAt: exact, autoOffMinutes: 10, now: now),
         isTrue,
       );
     });
 
     test('returns false 1 minute below threshold', () {
-      final almostThere =
-          DateTime.utc(2026, 7, 10, 11, 51, 0); // 9 min ago
+      final almostThere = DateTime.utc(2026, 7, 10, 11, 51, 0); // 9 min ago
       expect(
         shouldAutoOff(
           backgroundedAt: almostThere,
@@ -307,6 +300,74 @@ void main() {
 
     test('empty string is invalid', () {
       expect(isValidColorHex(''), isFalse);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5. Bubble / window geometry
+  // ---------------------------------------------------------------------------
+
+  group('clampBubbleSize', () {
+    test('clamps below minimum', () {
+      expect(clampBubbleSize(10), 44.0);
+    });
+
+    test('clamps above maximum', () {
+      expect(clampBubbleSize(200), 88.0);
+    });
+
+    test('passes through valid values', () {
+      expect(clampBubbleSize(56), 56.0);
+    });
+  });
+
+  group('bubble window geometry', () {
+    test('pill is wider than tall', () {
+      expect(bubbleWidth(56), greaterThan(56));
+    });
+
+    test('default size keeps historical window ratio', () {
+      // 56dp bubble → 87dp pill → 97dp window; height 56 → 66 like before.
+      expect(collapsedWindowHeight(56), 66);
+      expect(collapsedWindowWidth(56), bubbleWidth(56) + 10);
+    });
+  });
+
+  group('expandedOverlayOffset', () {
+    test('centers horizontally under RIGHT gravity', () {
+      final offset = expandedOverlayOffset(
+        screenW: 411,
+        screenH: 915,
+        cardW: 340,
+        cardH: 340,
+      );
+      // x = right margin = (411 - 340) / 2 ≈ 36
+      expect(offset.x, ((411 - 340) / 2).round());
+    });
+
+    test('places card top at topMargin below screen top', () {
+      final offset = expandedOverlayOffset(
+        screenW: 411,
+        screenH: 915,
+        cardW: 340,
+        cardH: 340,
+        topMargin: 48,
+      );
+      // y offset from vertical center; card top = center + y - cardH/2.
+      final cardTop = 915 / 2 + offset.y - 340 / 2;
+      expect(cardTop, closeTo(48, 1));
+      // Card must live entirely in the upper half + margin zone.
+      expect(915 / 2 + offset.y + 340 / 2, lessThan(915 * 0.6));
+    });
+
+    test('clamps x away from the -1 MATCH_PARENT sentinel', () {
+      final offset = expandedOverlayOffset(
+        screenW: 338,
+        screenH: 915,
+        cardW: 340,
+        cardH: 340,
+      );
+      expect(offset.x, greaterThanOrEqualTo(0));
     });
   });
 }

@@ -21,6 +21,7 @@ abstract final class OverlayPrefsKeys {
   static const showTodaySpend = 'overlay_show_today_spend';
   static const showBalance = 'overlay_show_balance';
   static const autoOffMinutes = 'overlay_auto_off_minutes'; // -1 = never
+  static const bubbleSize = 'overlay_bubble_size';
 }
 
 // ---------------------------------------------------------------------------
@@ -36,6 +37,7 @@ class OverlaySettings {
     this.showTodaySpend = true,
     this.showBalance = false,
     this.autoOffMinutes, // null = never
+    this.bubbleSize = 56.0,
   });
 
   final bool enabled;
@@ -59,6 +61,10 @@ class OverlaySettings {
   /// null means never auto-hide.
   final int? autoOffMinutes;
 
+  /// Collapsed bubble height in dp (44 – 88). The pill width and the overlay
+  /// window size derive from this (see overlay_logic.dart helpers).
+  final double bubbleSize;
+
   OverlaySettings copyWith({
     bool? enabled,
     double? opacity,
@@ -67,6 +73,7 @@ class OverlaySettings {
     bool? showTodaySpend,
     bool? showBalance,
     Object? autoOffMinutes = _sentinel,
+    double? bubbleSize,
   }) {
     return OverlaySettings(
       enabled: enabled ?? this.enabled,
@@ -80,6 +87,7 @@ class OverlaySettings {
       autoOffMinutes: autoOffMinutes == _sentinel
           ? this.autoOffMinutes
           : autoOffMinutes as int?,
+      bubbleSize: bubbleSize ?? this.bubbleSize,
     );
   }
 
@@ -117,6 +125,7 @@ OverlaySettings overlaySettingsFromPrefs(SharedPreferences prefs) {
       final raw = prefs.getInt(OverlayPrefsKeys.autoOffMinutes);
       return (raw == null || raw < 0) ? null : raw;
     }(),
+    bubbleSize: prefs.getDouble(OverlayPrefsKeys.bubbleSize) ?? 56.0,
   );
 }
 
@@ -136,15 +145,13 @@ Future<void> saveOverlaySettings(
   } else {
     await prefs.remove(OverlayPrefsKeys.defaultAccountId);
   }
-  await prefs.setBool(
-    OverlayPrefsKeys.showTodaySpend,
-    settings.showTodaySpend,
-  );
+  await prefs.setBool(OverlayPrefsKeys.showTodaySpend, settings.showTodaySpend);
   await prefs.setBool(OverlayPrefsKeys.showBalance, settings.showBalance);
   await prefs.setInt(
     OverlayPrefsKeys.autoOffMinutes,
     settings.autoOffMinutes ?? -1,
   );
+  await prefs.setDouble(OverlayPrefsKeys.bubbleSize, settings.bubbleSize);
 }
 
 // ---------------------------------------------------------------------------

@@ -8,8 +8,11 @@
 //     - SharedPreferences for settings (readable cross-isolate after reload).
 //
 // The overlay has two visual states:
-//   Collapsed → small circle (logo mark + bubble color + opacity)
-//   Expanded  → card with keypad, category chips, name field, optional info.
+//   Collapsed → half-pill "tube" docked flush to a screen edge (flat side
+//               against the edge, rounded side facing the screen).
+//   Expanded  → capture card centered in the upper half of the screen; the
+//               amount is typed with the system keyboard (window switches to
+//               a focusable flag while expanded so the IME can appear).
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -20,10 +23,12 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/amount_formatter.dart';
+import '../../core/amount_input_formatter.dart';
 import '../../core/theme.dart';
 import '../../data/local/app_database.dart' as db;
 import '../../data/models/category.dart';
 import '../../data/models/transaction.dart';
+import '../../data/sync/sync_engine.dart' show generateClientId, generateLocalId;
 import '../../shared/balvia_logo.dart';
 import 'overlay_database.dart';
 import 'overlay_logic.dart';
@@ -85,13 +90,25 @@ class _OverlayRootState extends State<_OverlayRoot> {
   String? _balance; // formatted COP string
 
   // Quick-capture state (managed locally — no Riverpod here).
-  String _rawDigits = '';
+  final TextEditingController _amountController = TextEditingController();
+  final FocusNode _amountFocus = FocusNode();
   String? _selectedCategoryId;
   String? _selectedAccountId;
   String _description = '';
   bool _isSaving = false;
   String? _saveError;
   String? _successMessage;
+
+  /// Whether the bubble is docked on the LEFT screen edge (flat side left).
+  /// Initial dock is the right edge (window alignment: centerRight).
+  bool _dockedLeft = false;
+
+  /// Window position (dp) saved right before expanding, restored on collapse
+  /// so the bubble returns to the edge the user left it on.
+  OverlayPosition? _savedPosition;
+
+  /// Raw digits currently in the amount field (thousand separators stripped).
+  String get _rawDigits => _amountController.text.replaceAll('.', '');
 
   @override
   void initState() {
@@ -103,8 +120,17 @@ class _OverlayRootState extends State<_OverlayRoot> {
 
   @override
   void dispose() {
+    _amountController.dispose();
+    _amountFocus.dispose();
     _database?.close();
     super.dispose();
+  }
+
+  /// Screen size in dp. The overlay FlutterView is only the small overlay
+  /// window, so MediaQuery is useless here — resolve from the Display API.
+  Size _screenSizeDp() {
+    final display = WidgetsBinding.instance.platformDispatcher.displays.first;
+    return display.size / display.devicePixelRatio;
   }
 
   Future<void> _initialize() async {
@@ -114,6 +140,9 @@ class _OverlayRootState extends State<_OverlayRoot> {
       _database = await openOverlayDatabase();
       await _loadData();
     } catch (e) {
+      // Surface init failures in logcat — the collapsed bubble can only show
+      // a generic error tint, which is undebuggable on its own.
+      debugPrint('Overlay init failed: $e');
       if (mounted) {
         setState(() {
           _loading = false;
@@ -228,21 +257,38 @@ class _OverlayRootState extends State<_OverlayRoot> {
     if (message is String && message == 'refresh') {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
+      final previousSize = _settings.bubbleSize;
       setState(() {
         _settings = overlaySettingsFromPrefs(prefs);
       });
+      // Live-resize the collapsed window when the size setting changed.
+      if (!_expanded && _settings.bubbleSize != previousSize) {
+        final size = clampBubbleSize(_settings.bubbleSize);
+        await FlutterOverlayWindow.resizeOverlay(
+          collapsedWindowWidth(size),
+          collapsedWindowHeight(size),
+          true,
+        );
+      }
       await _loadData();
     }
   }
 
   // ---- Expand / collapse ----
 
-  void _toggleExpand() {
+  /// Expanded capture card dimensions (dp). Sized for: header + amount field
+  /// + category chips + input row + buttons (the numeric keypad is gone — the
+  /// system keyboard is used instead).
+  static const int _kCardW = 340;
+  static const int _kCardH = 340;
+  static const int _kCardTopMargin = 48;
+
+  Future<void> _toggleExpand() async {
     final willExpand = !_expanded;
     setState(() {
       _expanded = willExpand;
       if (!willExpand) {
-        _rawDigits = '';
+        _amountController.clear();
         _selectedCategoryId = null;
         _description = '';
         _saveError = null;
@@ -251,9 +297,42 @@ class _OverlayRootState extends State<_OverlayRoot> {
     });
 
     if (willExpand) {
-      FlutterOverlayWindow.resizeOverlay(370, 530, true);
+      // Remember where the bubble is so collapse can put it back on the same
+      // edge. Then: focusable flag (so the IME can appear) → resize → center.
+      // Sequential awaits — the Java side must never see concurrent writers.
+      _savedPosition = await FlutterOverlayWindow.getOverlayPosition();
+      await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
+      await FlutterOverlayWindow.resizeOverlay(_kCardW, _kCardH, false);
+      final screen = _screenSizeDp();
+      final offset = expandedOverlayOffset(
+        screenW: screen.width,
+        screenH: screen.height,
+        cardW: _kCardW,
+        cardH: _kCardH,
+        topMargin: _kCardTopMargin,
+      );
+      await FlutterOverlayWindow.moveOverlay(
+        OverlayPosition(offset.x.toDouble(), offset.y.toDouble()),
+      );
+      // The window needs a layout pass to become focusable before the IME
+      // will honor a focus request.
+      await Future.delayed(const Duration(milliseconds: 120));
+      if (mounted && _expanded) _amountFocus.requestFocus();
     } else {
-      FlutterOverlayWindow.resizeOverlay(66, 66, true);
+      // Dismiss the IME first; switching back to a non-focusable flag at the
+      // end also guarantees it cannot linger.
+      FocusManager.instance.primaryFocus?.unfocus();
+      final size = clampBubbleSize(_settings.bubbleSize);
+      await FlutterOverlayWindow.resizeOverlay(
+        collapsedWindowWidth(size),
+        collapsedWindowHeight(size),
+        true,
+      );
+      final saved = _savedPosition;
+      if (saved != null) {
+        await FlutterOverlayWindow.moveOverlay(saved);
+      }
+      await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
     }
   }
 
@@ -261,38 +340,44 @@ class _OverlayRootState extends State<_OverlayRoot> {
     if (_expanded) _toggleExpand();
   }
 
-  // ---- Keypad ----
-
-  void _appendDigit(String d) {
-    if (_rawDigits.length >= 10) return;
-    setState(() {
-      _rawDigits = _rawDigits.isEmpty ? d : _rawDigits + d;
-      _saveError = null;
-    });
-  }
-
-  void _appendThousands() {
-    if (_rawDigits.isEmpty) return;
-    final next = '${_rawDigits}000';
-    if (next.length > 10) return;
-    setState(() {
-      _rawDigits = next;
-      _saveError = null;
-    });
-  }
-
-  void _backspace() {
-    if (_rawDigits.isEmpty) return;
-    setState(() => _rawDigits = _rawDigits.substring(0, _rawDigits.length - 1));
-  }
-
-  String get _formattedAmount {
-    if (_rawDigits.isEmpty) return '\$0';
+  /// Called on every pointer-up over the collapsed bubble. After the plugin's
+  /// edge-snap animation settles, reads the window position to work out which
+  /// edge the bubble is docked on and mirrors the pill shape accordingly.
+  Future<void> _detectDockSide() async {
+    if (_expanded) return;
+    // Snap animation: 25ms ticks with geometric 2/3 decay — settled well
+    // before 400ms.
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted || _expanded) return;
     try {
-      return AmountFormatter.formatCOP(Decimal.parse(_rawDigits));
-    } catch (_) {
-      return '\$$_rawDigits';
-    }
+      final pos = await FlutterOverlayWindow.getOverlayPosition();
+      final screenW = _screenSizeDp().width;
+      // Window gravity is RIGHT|CENTER: x is the offset from the RIGHT edge,
+      // so a large x means the bubble sits on the LEFT edge.
+      final dockedLeft = pos.x > screenW / 2;
+      if (mounted && dockedLeft != _dockedLeft) {
+        setState(() => _dockedLeft = dockedLeft);
+      }
+    } catch (_) {}
+  }
+
+  // ---- Amount helpers ----
+
+  /// Quick "×1000" affordance: COP amounts are large, and this was the most
+  /// useful key of the old in-card keypad, so it survives as a suffix chip.
+  void _appendThousands() {
+    final digits = _rawDigits;
+    if (digits.isEmpty) return;
+    final next = '${digits}000';
+    if (next.length > 10) return;
+    // Programmatic writes skip inputFormatters — format here.
+    _amountController.value = TextEditingValue(
+      text: AmountFormatter.formatDisplay(next),
+      selection: TextSelection.collapsed(
+        offset: AmountFormatter.formatDisplay(next).length,
+      ),
+    );
+    setState(() => _saveError = null);
   }
 
   // ---- Save ----
@@ -327,9 +412,10 @@ class _OverlayRootState extends State<_OverlayRoot> {
       final now = DateTime.now().toUtc().toIso8601String();
       final date = DateTime.now().toIso8601String().substring(0, 10);
 
-      // Use timestamp-based IDs; the push engine will reconcile.
-      final localId = 'ov-${DateTime.now().millisecondsSinceEpoch}';
-      final clientId = localId;
+      // Same id scheme as the rest of the app: the sync engine classifies
+      // 'local-' ids as creates and the server dedupes on client_id.
+      final localId = generateLocalId();
+      final clientId = generateClientId();
 
       final companion = db.TransactionsCompanion.insert(
         id: localId,
@@ -355,10 +441,10 @@ class _OverlayRootState extends State<_OverlayRoot> {
       // Notify main app to trigger a sync + UI refresh.
       FlutterOverlayWindow.shareData('refresh');
 
+      _amountController.clear();
       setState(() {
         _isSaving = false;
         _successMessage = 'Gasto registrado';
-        _rawDigits = '';
         _selectedCategoryId = null;
         _description = '';
       });
@@ -383,30 +469,49 @@ class _OverlayRootState extends State<_OverlayRoot> {
     return _buildCollapsed();
   }
 
-  // -- Collapsed bubble --
+  // -- Collapsed bubble: half-pill "tube" docked flush to a screen edge --
+  //
+  // The flat side sits against the screen edge; the opposite side is a full
+  // semicircle facing the open screen. The shape mirrors depending on which
+  // edge the bubble is docked to (detected after each drag in _detectDockSide).
 
   Widget _buildCollapsed({bool error = false}) {
     final color = _settings.bubbleColor;
-    return GestureDetector(
-      onTap: _toggleExpand,
-      child: Opacity(
-        opacity: _settings.opacity.clamp(0.3, 1.0),
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: error ? Colors.red : color,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.4),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+    final size = clampBubbleSize(_settings.bubbleSize);
+    final radius = Radius.circular(size / 2);
+    // The Listener sees every pointer-up (it does not join the gesture arena,
+    // so tap-to-expand keeps working) — used to re-detect the docked side
+    // after the plugin's edge-snap animation.
+    return Listener(
+      onPointerUp: (_) => _detectDockSide(),
+      child: Align(
+        // Flat side flush against the window edge that touches the screen.
+        alignment: _dockedLeft ? Alignment.centerLeft : Alignment.centerRight,
+        child: GestureDetector(
+          onTap: _toggleExpand,
+          child: Opacity(
+            opacity: _settings.opacity.clamp(0.3, 1.0),
+            child: Container(
+              width: bubbleWidth(size).toDouble(),
+              height: size,
+              decoration: BoxDecoration(
+                color: error ? Colors.red : color,
+                borderRadius: _dockedLeft
+                    ? BorderRadius.horizontal(right: radius)
+                    : BorderRadius.horizontal(left: radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    // Shadow falls toward the open side of the screen.
+                    offset: Offset(_dockedLeft ? 2 : -2, 2),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Center(
-            child: BalviaLogoMark(size: 28, color: Colors.white),
+              child: Center(
+                child: BalviaLogoMark(size: size * 0.5, color: Colors.white),
+              ),
+            ),
           ),
         ),
       ),
@@ -433,21 +538,22 @@ class _OverlayRootState extends State<_OverlayRoot> {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(cs),
-            if (_successMessage != null) _buildSuccess(),
-            _buildAmountDisplay(cs),
-            _buildCategoryChips(),
-            const SizedBox(height: 4),
-            _buildInputRow(cs),
-            if (_saveError != null) _buildError(),
-            const SizedBox(height: 2),
-            _buildKeypad(cs),
-            _buildButtons(cs),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(cs),
+              if (_successMessage != null) _buildSuccess(),
+              _buildAmountDisplay(cs),
+              _buildCategoryChips(),
+              const SizedBox(height: 4),
+              _buildInputRow(cs),
+              if (_saveError != null) _buildError(),
+              const SizedBox(height: 2),
+              _buildButtons(cs),
+            ],
+          ),
         ),
       ),
     );
@@ -516,6 +622,9 @@ class _OverlayRootState extends State<_OverlayRoot> {
   }
 
   Widget _buildAmountDisplay(ColorScheme cs) {
+    final amountStyle = BalviaTheme.displayStyle(
+      color: BalviaTheme.expense,
+    ).copyWith(fontSize: 34);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       child: Column(
@@ -525,10 +634,40 @@ class _OverlayRootState extends State<_OverlayRoot> {
             style: BalviaTheme.overlineStyle(color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
-          Text(
-            _formattedAmount,
-            style: BalviaTheme.displayStyle(color: BalviaTheme.expense)
-                .copyWith(fontSize: 34),
+          TextField(
+            controller: _amountController,
+            focusNode: _amountFocus,
+            keyboardType: TextInputType.number,
+            inputFormatters: const [CopAmountInputFormatter()],
+            textAlign: TextAlign.center,
+            style: amountStyle,
+            cursorColor: BalviaTheme.expense,
+            decoration: InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              hintText: '0',
+              hintStyle: amountStyle.copyWith(
+                color: BalviaTheme.expense.withValues(alpha: 0.35),
+              ),
+              prefixText: '\$ ',
+              prefixStyle: amountStyle,
+              // COP quick-multiplier: appends "000" to the typed digits.
+              suffixIcon: TextButton(
+                onPressed: _appendThousands,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(44, 32),
+                  foregroundColor: cs.onSurfaceVariant,
+                ),
+                child: const Text(
+                  ',000',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            onChanged: (_) {
+              if (_saveError != null) setState(() => _saveError = null);
+            },
           ),
         ],
       ),
@@ -576,8 +715,9 @@ class _OverlayRootState extends State<_OverlayRoot> {
               height: 34,
               child: TextField(
                 onChanged: (v) => setState(() => _description = v),
-                style: BalviaTheme.bodyStyle(color: cs.onSurface)
-                    .copyWith(fontSize: 13),
+                style: BalviaTheme.bodyStyle(
+                  color: cs.onSurface,
+                ).copyWith(fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Nombre (opcional)',
                   hintStyle: BalviaTheme.captionStyle(
@@ -612,68 +752,6 @@ class _OverlayRootState extends State<_OverlayRoot> {
     );
   }
 
-  Widget _buildKeypad(ColorScheme cs) {
-    Widget numKey(String label, VoidCallback action, {bool special = false}) {
-      return Expanded(
-        child: SizedBox(
-          height: 46,
-          child: TextButton(
-            onPressed: action,
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              foregroundColor: special ? cs.onSurfaceVariant : cs.onSurface,
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w500,
-                color: special ? cs.onSurfaceVariant : cs.onSurface,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Row(children: [
-          numKey('1', () => _appendDigit('1')),
-          numKey('2', () => _appendDigit('2')),
-          numKey('3', () => _appendDigit('3')),
-        ]),
-        Row(children: [
-          numKey('4', () => _appendDigit('4')),
-          numKey('5', () => _appendDigit('5')),
-          numKey('6', () => _appendDigit('6')),
-        ]),
-        Row(children: [
-          numKey('7', () => _appendDigit('7')),
-          numKey('8', () => _appendDigit('8')),
-          numKey('9', () => _appendDigit('9')),
-        ]),
-        Row(children: [
-          numKey(',000', _appendThousands, special: true),
-          numKey('0', () => _appendDigit('0')),
-          Expanded(
-            child: SizedBox(
-              height: 46,
-              child: TextButton(
-                onPressed: _backspace,
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  foregroundColor: cs.onSurfaceVariant,
-                ),
-                child: const Icon(Icons.backspace_outlined, size: 20),
-              ),
-            ),
-          ),
-        ]),
-      ],
-    );
-  }
-
   Widget _buildButtons(ColorScheme cs) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
@@ -682,7 +760,12 @@ class _OverlayRootState extends State<_OverlayRoot> {
           Expanded(
             child: OutlinedButton(
               onPressed: _collapse,
-              child: const Text('Cancelar'),
+              // Narrow slot (1/3 of a 340dp card): trim the default padding
+              // so "Cancelar" fits on one line.
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+              child: const Text('Cancelar', maxLines: 1),
             ),
           ),
           const SizedBox(width: 8),
@@ -748,10 +831,7 @@ class _CategoryChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: selected
               ? Border.all(color: catColor, width: 1.5)
-              : Border.all(
-                  color: catColor.withValues(alpha: 0.3),
-                  width: 1,
-                ),
+              : Border.all(color: catColor.withValues(alpha: 0.3), width: 1),
         ),
         child: Text(
           category.name,
@@ -810,11 +890,7 @@ class _AccountChip extends StatelessWidget {
               selected.name,
               style: BalviaTheme.captionStyle(color: cs.onSurface),
             ),
-            Icon(
-              Icons.arrow_drop_down,
-              size: 14,
-              color: cs.onSurfaceVariant,
-            ),
+            Icon(Icons.arrow_drop_down, size: 14, color: cs.onSurfaceVariant),
           ],
         ),
       ),

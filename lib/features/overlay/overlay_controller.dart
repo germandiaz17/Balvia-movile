@@ -82,6 +82,10 @@ class OverlayController extends AsyncNotifier<bool>
 
     await _showOverlay();
     state = const AsyncData(true);
+    // The overlay engine loaded its data snapshot when the app process
+    // started; anything synced since then (accounts, categories) would be
+    // invisible to the bubble. Ask it to reload now that it is visible.
+    await pushSettings();
     return true;
   }
 
@@ -122,16 +126,20 @@ class OverlayController extends AsyncNotifier<bool>
   }
 
   Future<void> _showOverlay() async {
+    final settings = await ref.read(overlaySettingsProvider.future);
+    final size = clampBubbleSize(settings.bubbleSize);
     await FlutterOverlayWindow.showOverlay(
-      height: 66,
-      width: 66,
+      height: collapsedWindowHeight(size),
+      width: collapsedWindowWidth(size),
       alignment: OverlayAlignment.centerRight,
       flag: OverlayFlag.defaultFlag,
       enableDrag: true,
       overlayTitle: 'Balvia',
       overlayContent: 'Captura rápida de gastos',
       visibility: NotificationVisibility.visibilityPublic,
-      positionGravity: PositionGravity.right,
+      // Snap to the nearest left/right edge after each drag; the bubble
+      // mirrors its half-pill shape to keep the flat side on the edge.
+      positionGravity: PositionGravity.auto,
     );
   }
 

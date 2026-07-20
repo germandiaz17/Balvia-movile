@@ -99,12 +99,14 @@ class _OverlaySettingsScreenState extends ConsumerState<OverlaySettingsScreen> {
           SwitchListTile(
             title: Text(
               'Activar burbuja',
-              style: BalviaTheme.bodyStyle(color: cs.onSurface).copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: BalviaTheme.bodyStyle(
+                color: cs.onSurface,
+              ).copyWith(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
-              overlayActive ? 'La burbuja está activa' : 'La burbuja está inactiva',
+              overlayActive
+                  ? 'La burbuja está activa'
+                  : 'La burbuja está inactiva',
               style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
             ),
             secondary: Container(
@@ -127,7 +129,9 @@ class _OverlaySettingsScreenState extends ConsumerState<OverlaySettingsScreen> {
 
               if (!context.mounted) return;
               if (value) {
-                await ref.read(overlayControllerProvider.notifier).enable(context);
+                await ref
+                    .read(overlayControllerProvider.notifier)
+                    .enable(context);
               } else {
                 await ref.read(overlayControllerProvider.notifier).disable();
               }
@@ -165,7 +169,44 @@ class _OverlaySettingsScreenState extends ConsumerState<OverlaySettingsScreen> {
               final updated = settings.copyWith(opacity: clampOpacity(v));
               await ref.read(overlaySettingsProvider.notifier).save(updated);
               if (settings.enabled) {
-                await ref.read(overlayControllerProvider.notifier).pushSettings();
+                await ref
+                    .read(overlayControllerProvider.notifier)
+                    .pushSettings();
+              }
+            },
+          ),
+
+          // ---- Size ----
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.photo_size_select_small_outlined, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Tamaño',
+                  style: BalviaTheme.bodyStyle(color: cs.onSurface),
+                ),
+                const Spacer(),
+                Text(
+                  '${settings.bubbleSize.round()}',
+                  style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Slider(
+            value: clampBubbleSize(settings.bubbleSize),
+            min: 44,
+            max: 88,
+            divisions: 11,
+            onChanged: (v) async {
+              final updated = settings.copyWith(bubbleSize: clampBubbleSize(v));
+              await ref.read(overlaySettingsProvider.notifier).save(updated);
+              if (settings.enabled) {
+                await ref
+                    .read(overlayControllerProvider.notifier)
+                    .pushSettings();
               }
             },
           ),
@@ -328,42 +369,53 @@ class _BubblePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = settings.bubbleColor;
+    final size = clampBubbleSize(settings.bubbleSize);
+    // Preview mirrors the live bubble: half-pill docked to the right edge
+    // (flat right side, rounded left side).
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 0, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
       ),
       child: Column(
         children: [
-          Text(
-            'Vista previa',
-            style: BalviaTheme.captionStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: Text(
+              'Vista previa',
+              style: BalviaTheme.captionStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          Opacity(
-            opacity: settings.opacity,
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.4),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Opacity(
+              opacity: settings.opacity,
+              child: Container(
+                width: bubbleWidth(size).toDouble(),
+                height: size,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.horizontal(
+                    left: Radius.circular(size / 2),
                   ),
-                ],
-              ),
-              child: Center(
-                child: CustomPaint(
-                  size: const Size(28, 28),
-                  painter: _WhiteLogoPainter(),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(-2, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: CustomPaint(
+                    size: Size(size * 0.5, size * 0.5),
+                    painter: _WhiteLogoPainter(),
+                  ),
                 ),
               ),
             ),
@@ -482,7 +534,8 @@ class _AccountSelector extends ConsumerWidget {
 
     return accountsAsync.when(
       loading: () => const ListTile(title: Text('Cargando cuentas…')),
-      error: (err, st) => const ListTile(title: Text('Error al cargar cuentas')),
+      error: (err, st) =>
+          const ListTile(title: Text('Error al cargar cuentas')),
       data: (accounts) {
         if (accounts.isEmpty) {
           return ListTile(
