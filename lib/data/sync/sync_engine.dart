@@ -390,7 +390,17 @@ class SyncEngine {
             dayOfWeek: Value(row['day_of_week'] as int?),
             startDate: Value(row['start_date'] as String),
             endDate: Value(row['end_date'] as String?),
-            nextDueDate: Value(row['next_due_date'] as String),
+            // next_due_date is nullable server-side: the engine sets it to NULL
+            // once a template runs past its end_date, and the wire type is
+            // *string with omitempty, so the key is simply absent. The Drift
+            // column is NOT NULL, so a raw cast here would throw and take the
+            // whole pull down with it — not just recurring transactions.
+            // Exhausted templates arrive with is_active = false and the UI
+            // renders them as finished without reading this date, so falling
+            // back to start_date is safe and avoids a schema migration.
+            nextDueDate: Value(
+              row['next_due_date'] as String? ?? row['start_date'] as String,
+            ),
             isActive: Value(row['is_active'] as bool? ?? true),
             updatedAt: Value(row['updated_at'] as String),
             deletedAt: Value(row['deleted_at'] as String?),
