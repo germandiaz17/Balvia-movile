@@ -76,11 +76,12 @@ class ProfileScreen extends ConsumerWidget {
             title: 'Inteligencia artificial',
             onTap: () => context.push('/ai-settings'),
           ),
-          _DisabledProfileTile(
+          _ProfileTile(
             iconColor: const Color(0xFFFFA726), // amber
             iconBg: const Color(0xFFFFF3E0),
             icon: Icons.timer_outlined,
             title: 'Configuración del seguimiento',
+            onTap: () => context.push('/tracking-settings'),
           ),
           _ProfileTile(
             iconColor: const Color(0xFF42A5F5), // blue

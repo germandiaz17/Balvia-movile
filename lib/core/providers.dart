@@ -18,9 +18,11 @@ import '../data/repositories/recurring_transaction_repository.dart';
 import '../data/repositories/savings_goal_repository.dart';
 import '../data/repositories/tracking_period_repository.dart';
 import '../data/repositories/transaction_repository.dart';
+import '../data/repositories/user_settings_repository.dart';
 import '../data/models/budget.dart';
 import '../data/models/recurring_transaction.dart';
 import '../data/models/savings_goal.dart';
+import '../data/models/user_settings.dart';
 
 /// Bumped by the API client when a session expires (refresh failed). The auth
 /// controller listens to this to flip to logged-out — keeps infra decoupled
@@ -194,3 +196,13 @@ final recurringTransactionsProvider =
     FutureProvider.autoDispose<List<RecurringTransaction>>(
       (ref) => ref.watch(recurringTransactionRepositoryProvider).list(),
     );
+
+final userSettingsRepositoryProvider = Provider<UserSettingsRepository>(
+  (ref) => UserSettingsRepository(ref.watch(dioProvider)),
+);
+
+/// The user's preferences, including the end date of the active period so the
+/// tracking-settings screen can say exactly when a change takes effect.
+final userSettingsProvider = FutureProvider.autoDispose<UserSettings>(
+  (ref) => ref.watch(userSettingsRepositoryProvider).get(),
+);
