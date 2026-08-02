@@ -14,9 +14,11 @@ import '../data/repositories/ai_repository.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/budget_repository.dart';
 import '../data/repositories/category_repository.dart';
+import '../data/repositories/savings_goal_repository.dart';
 import '../data/repositories/tracking_period_repository.dart';
 import '../data/repositories/transaction_repository.dart';
 import '../data/models/budget.dart';
+import '../data/models/savings_goal.dart';
 
 /// Bumped by the API client when a session expires (refresh failed). The auth
 /// controller listens to this to flip to logged-out — keeps infra decoupled
@@ -159,3 +161,21 @@ final allTransactionsProvider = FutureProvider.autoDispose<List<Transaction>>((
 final budgetsProvider = FutureProvider.autoDispose<List<Budget>>(
   (ref) => ref.watch(budgetRepositoryProvider).list(),
 );
+
+final savingsGoalRepositoryProvider = Provider<SavingsGoalRepository>(
+  (ref) => SavingsGoalRepository(ref.watch(dioProvider)),
+);
+
+/// All of the user's savings goals (any status). Network-backed — goals are not
+/// part of the offline write path. autoDispose so re-entering the screen
+/// refetches.
+final savingsGoalsProvider = FutureProvider.autoDispose<List<SavingsGoal>>(
+  (ref) => ref.watch(savingsGoalRepositoryProvider).list(),
+);
+
+/// Contribution history for one goal, keyed by goal id.
+final goalContributionsProvider = FutureProvider.autoDispose
+    .family<List<GoalContribution>, String>(
+      (ref, goalId) =>
+          ref.watch(savingsGoalRepositoryProvider).listContributions(goalId),
+    );

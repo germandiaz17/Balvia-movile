@@ -82,11 +82,12 @@ class ProfileScreen extends ConsumerWidget {
             icon: Icons.timer_outlined,
             title: 'Configuración del seguimiento',
           ),
-          _DisabledProfileTile(
+          _ProfileTile(
             iconColor: const Color(0xFF42A5F5), // blue
             iconBg: const Color(0xFFE3F2FD),
             icon: Icons.savings_outlined,
             title: 'Metas de ahorro',
+            onTap: () => context.push('/savings-goals'),
           ),
           _DisabledProfileTile(
             iconColor: const Color(0xFF66BB6A), // green
