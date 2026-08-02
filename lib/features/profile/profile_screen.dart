@@ -89,11 +89,12 @@ class ProfileScreen extends ConsumerWidget {
             title: 'Metas de ahorro',
             onTap: () => context.push('/savings-goals'),
           ),
-          _DisabledProfileTile(
+          _ProfileTile(
             iconColor: const Color(0xFF66BB6A), // green
             iconBg: const Color(0xFFE8F5E9),
             icon: Icons.repeat_outlined,
             title: 'Transacciones recurrentes',
+            onTap: () => context.push('/recurring'),
           ),
 
           const SizedBox(height: BalviaTheme.spaceMd),

@@ -13,6 +13,7 @@ import '../features/categories/categories_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/overlay/overlay_settings_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/recurring/recurring_transactions_screen.dart';
 import '../features/savings_goals/savings_goals_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/transactions/transactions_screen.dart';
@@ -72,6 +73,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/savings-goals',
         builder: (_, _) => const SavingsGoalsScreen(),
+      ),
+      GoRoute(
+        path: '/recurring',
+        builder: (_, _) => const RecurringTransactionsScreen(),
       ),
       // Dashboard is accessed through the shell at /home (Tab 0 replaces
       // the old /dashboard). The old route is kept for backward compat.

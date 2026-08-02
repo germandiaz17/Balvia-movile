@@ -14,10 +14,12 @@ import '../data/repositories/ai_repository.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/budget_repository.dart';
 import '../data/repositories/category_repository.dart';
+import '../data/repositories/recurring_transaction_repository.dart';
 import '../data/repositories/savings_goal_repository.dart';
 import '../data/repositories/tracking_period_repository.dart';
 import '../data/repositories/transaction_repository.dart';
 import '../data/models/budget.dart';
+import '../data/models/recurring_transaction.dart';
 import '../data/models/savings_goal.dart';
 
 /// Bumped by the API client when a session expires (refresh failed). The auth
@@ -178,4 +180,17 @@ final goalContributionsProvider = FutureProvider.autoDispose
     .family<List<GoalContribution>, String>(
       (ref, goalId) =>
           ref.watch(savingsGoalRepositoryProvider).listContributions(goalId),
+    );
+
+final recurringTransactionRepositoryProvider =
+    Provider<RecurringTransactionRepository>(
+      (ref) => RecurringTransactionRepository(ref.watch(dioProvider)),
+    );
+
+/// Recurring templates. Note that fetching this list makes the backend
+/// materialise any overdue template into real transactions — the screen kicks
+/// off a sync afterwards so they reach Drift.
+final recurringTransactionsProvider =
+    FutureProvider.autoDispose<List<RecurringTransaction>>(
+      (ref) => ref.watch(recurringTransactionRepositoryProvider).list(),
     );
