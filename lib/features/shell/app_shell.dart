@@ -69,6 +69,7 @@ class _CentralFab extends ConsumerWidget {
       ref.invalidate(recentTransactionsProvider);
       ref.invalidate(allTransactionsProvider);
       ref.invalidate(budgetsProvider);
+      ref.invalidate(insightsProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Gasto registrado'),

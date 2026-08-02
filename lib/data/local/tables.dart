@@ -165,6 +165,16 @@ class Transactions extends Table {
   TextColumn get syncStatus =>
       text().named('sync_status').withDefault(const Constant('synced'))();
 
+  // AI auto-categorization metadata (measures model accuracy later).
+  //  - aiCategorized: true only when the user kept the AI-suggested category.
+  //  - aiConfidence: decimal 0..1 stored as TEXT (like money), null if absent.
+  //  - aiSuggestedCategoryId: the category the AI suggested, null if none.
+  BoolColumn get aiCategorized =>
+      boolean().named('ai_categorized').withDefault(const Constant(false))();
+  TextColumn get aiConfidence => text().named('ai_confidence').nullable()();
+  TextColumn get aiSuggestedCategoryId =>
+      text().named('ai_suggested_category_id').nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

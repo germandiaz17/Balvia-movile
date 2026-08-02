@@ -137,6 +137,16 @@ class _QuickCaptureSheetState extends ConsumerState<_QuickCaptureSheet> {
                 .read(quickCaptureControllerProvider.notifier)
                 .selectCategory(id),
           ),
+          const SizedBox(height: BalviaTheme.spaceXs),
+
+          // "Sugerir con IA" trigger (explicit tap only — the user pays per call).
+          _SuggestWithAiButton(
+            enabled: state.description.trim().isNotEmpty,
+            isSuggesting: state.isSuggesting,
+            onTap: () => ref
+                .read(quickCaptureControllerProvider.notifier)
+                .suggestCategory(),
+          ),
           const SizedBox(height: BalviaTheme.spaceSm),
 
           // Account + description row
@@ -429,6 +439,62 @@ class _CategoryChip extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Subtle "Sugerir con IA" trigger shown under the category chips.
+/// Enabled only when there is a description; shows a spinner while the
+/// suggestion is in flight. Best-effort — it never blocks the save flow.
+class _SuggestWithAiButton extends StatelessWidget {
+  const _SuggestWithAiButton({
+    required this.enabled,
+    required this.isSuggesting,
+    required this.onTap,
+  });
+
+  final bool enabled;
+  final bool isSuggesting;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final active = enabled && !isSuggesting;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: BalviaTheme.spaceMd),
+        child: TextButton.icon(
+          onPressed: active ? onTap : null,
+          style: TextButton.styleFrom(
+            foregroundColor: BalviaTheme.seed,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: const Size(0, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          icon: isSuggesting
+              ? const SizedBox(
+                  height: 14,
+                  width: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  Icons.auto_awesome,
+                  size: 16,
+                  color: active ? BalviaTheme.seed : cs.onSurfaceVariant,
+                ),
+          label: Text(
+            'Sugerir con IA',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: active ? BalviaTheme.seed : cs.onSurfaceVariant,
+            ),
+          ),
         ),
       ),
     );

@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_client.dart';
 import 'token_storage.dart';
+import '../data/models/ai_settings.dart';
 import '../data/models/category.dart';
+import '../data/models/insight.dart';
 import '../data/models/period_summary.dart';
 import '../data/models/tracking_period.dart';
 import '../data/models/transaction.dart';
 import '../data/repositories/account_repository.dart';
+import '../data/repositories/ai_repository.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/budget_repository.dart';
 import '../data/repositories/category_repository.dart';
@@ -64,6 +67,16 @@ final budgetRepositoryProvider = Provider<BudgetRepository>(
   (ref) => BudgetRepository(ref.watch(dioProvider)),
 );
 
+final aiRepositoryProvider = Provider<AiRepository>(
+  (ref) => AiRepository(ref.watch(dioProvider)),
+);
+
+/// Current AI configuration status for the settings screen. autoDispose so it
+/// re-fetches each time the screen is opened.
+final aiSettingsProvider = FutureProvider.autoDispose<AiSettings>(
+  (ref) => ref.watch(aiRepositoryProvider).getSettings(),
+);
+
 /// Categories are cached for the session (not autoDispose).
 /// The quick-capture modal reads from this provider — it stays warm after
 /// the first fetch so subsequent opens are instant.
@@ -101,6 +114,15 @@ final periodSummaryProvider = FutureProvider.autoDispose<PeriodSummary>((
   final repo = ref.watch(trackingPeriodRepositoryProvider);
   final period = await ref.watch(activeTrackingPeriodProvider.future);
   return repo.getSummary(period.id, view: view);
+});
+
+/// Insights for the active period (the backend returns the "during" insights).
+/// Non-critical and online-only. Awaiting `.future` keeps this in loading state
+/// (not error) while the active period itself is still loading.
+final insightsProvider = FutureProvider.autoDispose<List<Insight>>((ref) async {
+  final repo = ref.watch(trackingPeriodRepositoryProvider);
+  final period = await ref.watch(activeTrackingPeriodProvider.future);
+  return repo.getInsights(period.id);
 });
 
 /// Recent transactions for the active period (last ~10, sorted desc by date).

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/accounts/accounts_screen.dart';
+import '../features/ai/ai_settings_screen.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
@@ -63,6 +64,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/overlay-settings',
         builder: (_, _) => const OverlaySettingsScreen(),
       ),
+      GoRoute(
+        path: '/ai-settings',
+        builder: (_, _) => const AiSettingsScreen(),
+      ),
       // Dashboard is accessed through the shell at /home (Tab 0 replaces
       // the old /dashboard). The old route is kept for backward compat.
       GoRoute(path: '/dashboard', builder: (_, _) => const HomeScreen()),
@@ -111,4 +116,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../models/insight.dart';
 import '../models/period_summary.dart';
 import '../models/tracking_period.dart';
 
@@ -31,6 +32,18 @@ class TrackingPeriodRepository {
       queryParameters: {'view': view},
     );
     return PeriodSummary.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// Returns the insights for [periodId]. For the active period the backend
+  /// lazily computes the "during" insights. Insights are non-critical and
+  /// online-only. Returns [] when the payload is missing.
+  Future<List<Insight>> getInsights(String periodId) async {
+    final res = await _dio.get('/tracking-periods/$periodId/insights');
+    final items = (res.data as Map<String, dynamic>)['insights'] as List?;
+    if (items == null) return [];
+    return items
+        .map((e) => Insight.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// Returns all tracking periods for the authenticated user.

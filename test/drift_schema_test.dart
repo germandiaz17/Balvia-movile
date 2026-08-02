@@ -275,6 +275,65 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // AI auto-categorization metadata
+  // ---------------------------------------------------------------------------
+
+  group('AI categorization metadata columns', () {
+    test(
+      'defaults: ai_categorized false, confidence + suggested id null',
+      () async {
+        await db.transactionsDao.upsert(
+          dblib.TransactionsCompanion.insert(
+            id: 'tx-ai-default',
+            userId: 'u-1',
+            trackingPeriodId: 'tp-1',
+            accountId: 'acc-1',
+            transactionType: 'expense',
+            amount: '1000.00',
+            currency: 'COP',
+            transactionDate: '2026-07-09',
+            createdAt: '2026-07-09T12:00:00Z',
+            updatedAt: '2026-07-09T12:00:00Z',
+          ),
+        );
+        final row = await (db.select(
+          db.transactions,
+        )..where((t) => t.id.equals('tx-ai-default'))).getSingle();
+        expect(row.aiCategorized, isFalse);
+        expect(row.aiConfidence, isNull);
+        expect(row.aiSuggestedCategoryId, isNull);
+      },
+    );
+
+    test('round-trips ai metadata (confidence as TEXT decimal)', () async {
+      await db.transactionsDao.upsert(
+        dblib.TransactionsCompanion.insert(
+          id: 'tx-ai-1',
+          userId: 'u-1',
+          trackingPeriodId: 'tp-1',
+          accountId: 'acc-1',
+          transactionType: 'expense',
+          amount: '1000.00',
+          currency: 'COP',
+          transactionDate: '2026-07-09',
+          createdAt: '2026-07-09T12:00:00Z',
+          updatedAt: '2026-07-09T12:00:00Z',
+          aiCategorized: const drift.Value(true),
+          aiConfidence: const drift.Value('0.7200'),
+          aiSuggestedCategoryId: const drift.Value('cat-food'),
+        ),
+      );
+      final row = await (db.select(
+        db.transactions,
+      )..where((t) => t.id.equals('tx-ai-1'))).getSingle();
+      expect(row.aiCategorized, isTrue);
+      expect(row.aiConfidence, '0.7200');
+      expect(Decimal.parse(row.aiConfidence!), Decimal.parse('0.72'));
+      expect(row.aiSuggestedCategoryId, 'cat-food');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Money precision
   // ---------------------------------------------------------------------------
 

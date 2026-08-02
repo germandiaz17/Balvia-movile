@@ -47,6 +47,24 @@ void main() {
       expect(tx.occurrenceDate, isNull);
     });
 
+    test('ai metadata defaults when absent from JSON', () {
+      final tx = Transaction.fromJson(sampleJson);
+      expect(tx.aiCategorized, isFalse);
+      expect(tx.aiConfidence, isNull);
+      expect(tx.aiSuggestedCategoryId, isNull);
+    });
+
+    test('parses ai metadata when present', () {
+      final json = Map<String, dynamic>.from(sampleJson)
+        ..['ai_categorized'] = true
+        ..['ai_confidence'] = '0.72'
+        ..['ai_suggested_category_id'] = 'cat-food';
+      final tx = Transaction.fromJson(json);
+      expect(tx.aiCategorized, isTrue);
+      expect(tx.aiConfidence, Decimal.parse('0.72'));
+      expect(tx.aiSuggestedCategoryId, 'cat-food');
+    });
+
     test('parses recurring fields when present', () {
       final json = Map<String, dynamic>.from(sampleJson)
         ..['recurring_transaction_id'] = 'rec-1'
@@ -85,6 +103,23 @@ void main() {
       final json = tx.toJson();
       expect(json['category_id'], isNull);
       expect(json['notes'], isNull);
+    });
+
+    test('ai metadata round-trips (confidence as string, nulls omitted)', () {
+      final withAi = Map<String, dynamic>.from(sampleJson)
+        ..['ai_categorized'] = true
+        ..['ai_confidence'] = '0.72'
+        ..['ai_suggested_category_id'] = 'cat-food';
+      final json = Transaction.fromJson(withAi).toJson();
+      expect(json['ai_categorized'], isTrue);
+      expect(json['ai_confidence'], '0.72');
+      expect(json['ai_suggested_category_id'], 'cat-food');
+
+      // Default transaction: categorized false, optional fields omitted.
+      final plain = Transaction.fromJson(sampleJson).toJson();
+      expect(plain['ai_categorized'], isFalse);
+      expect(plain.containsKey('ai_confidence'), isFalse);
+      expect(plain.containsKey('ai_suggested_category_id'), isFalse);
     });
   });
 }

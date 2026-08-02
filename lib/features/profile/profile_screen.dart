@@ -69,6 +69,13 @@ class ProfileScreen extends ConsumerWidget {
             title: 'Burbuja flotante',
             onTap: () => context.push('/overlay-settings'),
           ),
+          _ProfileTile(
+            iconColor: const Color(0xFFAB47BC), // magenta
+            iconBg: const Color(0xFFF3E5F5),
+            icon: Icons.auto_awesome,
+            title: 'Inteligencia artificial',
+            onTap: () => context.push('/ai-settings'),
+          ),
           _DisabledProfileTile(
             iconColor: const Color(0xFFFFA726), // amber
             iconBg: const Color(0xFFFFF3E0),
@@ -210,10 +217,9 @@ class _ProfileHeader extends StatelessWidget {
             backgroundColor: Colors.white.withValues(alpha: 0.25),
             child: Text(
               initials,
-              style: BalviaTheme.titleStyle(color: Colors.white).copyWith(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: BalviaTheme.titleStyle(
+                color: Colors.white,
+              ).copyWith(fontSize: 24, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(height: BalviaTheme.spaceSm),
@@ -345,15 +351,8 @@ class _ProfileTile extends StatelessWidget {
         ),
         child: Icon(icon, size: 18, color: iconColor),
       ),
-      title: Text(
-        title,
-        style: BalviaTheme.bodyStyle(color: cs.onSurface),
-      ),
-      trailing: Icon(
-        Icons.chevron_right,
-        color: cs.onSurfaceVariant,
-        size: 20,
-      ),
+      title: Text(title, style: BalviaTheme.bodyStyle(color: cs.onSurface)),
+      trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 20),
       onTap: onTap,
     );
   }
@@ -404,9 +403,7 @@ class _DisabledProfileTile extends StatelessWidget {
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: cs.outline.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(

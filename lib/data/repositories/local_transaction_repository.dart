@@ -36,6 +36,11 @@ Transaction _rowToModel(db.Transaction row) => Transaction(
   clientId: row.clientId,
   recurringTransactionId: row.recurringTransactionId,
   occurrenceDate: row.occurrenceDate,
+  aiCategorized: row.aiCategorized,
+  aiConfidence: row.aiConfidence == null
+      ? null
+      : Decimal.tryParse(row.aiConfidence!),
+  aiSuggestedCategoryId: row.aiSuggestedCategoryId,
 );
 
 // ---------------------------------------------------------------------------
@@ -82,6 +87,9 @@ class LocalTransactionRepository {
     String? transactionDate,
     String? transferAccountId,
     String userId = '',
+    bool aiCategorized = false,
+    Decimal? aiConfidence,
+    String? aiSuggestedCategoryId,
   }) async {
     final now = DateTime.now().toUtc().toIso8601String();
     final date =
@@ -108,6 +116,9 @@ class LocalTransactionRepository {
       transferAccountId: Value(transferAccountId),
       clientId: Value(clientId),
       syncStatus: const Value('pending'),
+      aiCategorized: Value(aiCategorized),
+      aiConfidence: Value(aiConfidence?.toString()),
+      aiSuggestedCategoryId: Value(aiSuggestedCategoryId),
     );
 
     await _db.transactionsDao.upsert(companion);

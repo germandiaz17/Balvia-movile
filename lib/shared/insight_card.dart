@@ -7,12 +7,25 @@ enum InsightSeverity {
   /// Blue info card — neutral / informational (e.g. spending pace).
   info,
 
+  /// Green success card — positive outcome (e.g. on-track, goal reached).
+  success,
+
   /// Amber warning card — caution, budget approaching limit.
   warning,
 
   /// Red critical card — budget exceeded or urgent action.
   critical,
 }
+
+/// Maps a backend severity string to an [InsightSeverity].
+/// Unknown values default to [InsightSeverity.info].
+InsightSeverity insightSeverityFromString(String s) => switch (s) {
+  'info' => InsightSeverity.info,
+  'success' => InsightSeverity.success,
+  'warning' => InsightSeverity.warning,
+  'critical' => InsightSeverity.critical,
+  _ => InsightSeverity.info,
+};
 
 /// Insight card component (mockup 06 / design system §6).
 ///
@@ -98,6 +111,7 @@ class InsightCard extends StatelessWidget {
 
   static IconData _defaultIcon(InsightSeverity severity) => switch (severity) {
     InsightSeverity.info => Icons.info_outline,
+    InsightSeverity.success => Icons.check_circle_outline,
     InsightSeverity.warning => Icons.warning_amber_rounded,
     InsightSeverity.critical => Icons.error_outline,
   };
@@ -112,6 +126,13 @@ class InsightCard extends StatelessWidget {
       iconBackground: const Color(0xFF1976D2),
       textStrong: isDark ? const Color(0xFFBBDEFB) : const Color(0xFF0D47A1),
       textBody: isDark ? const Color(0xFF90CAF9) : const Color(0xFF1565C0),
+    ),
+    InsightSeverity.success => _InsightColors(
+      background: isDark ? const Color(0xFF0E2A1E) : const Color(0xFFE8F5E9),
+      border: isDark ? const Color(0xFF2E7D32) : const Color(0xFFA5D6A7),
+      iconBackground: const Color(0xFF2E7D32),
+      textStrong: isDark ? const Color(0xFFC8E6C9) : const Color(0xFF1B5E20),
+      textBody: isDark ? const Color(0xFFA5D6A7) : const Color(0xFF2E7D32),
     ),
     InsightSeverity.warning => _InsightColors(
       background: isDark ? const Color(0xFF2A200A) : const Color(0xFFFFF8E1),

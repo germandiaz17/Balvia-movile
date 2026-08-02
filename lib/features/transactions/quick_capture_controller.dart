@@ -14,8 +14,11 @@ class QuickCaptureState {
     this.selectedAccountId,
     this.description = '',
     this.isLoading = false,
+    this.isSuggesting = false,
     this.error,
     this.savedTransaction,
+    this.suggestedCategoryId,
+    this.suggestedConfidence,
   });
 
   /// Digit string the user has typed on the numeric keypad — no separators.
@@ -27,10 +30,21 @@ class QuickCaptureState {
   final String? selectedAccountId;
   final String description;
   final bool isLoading;
+
+  /// True while an AI category suggestion is in flight.
+  final bool isSuggesting;
   final String? error;
 
   /// Set when a transaction has been successfully saved.
   final Transaction? savedTransaction;
+
+  /// The category id the AI last suggested for this capture (null if none was
+  /// ever produced). Persisted onto the saved transaction to measure accuracy.
+  final String? suggestedCategoryId;
+
+  /// The confidence (0..1) of the AI suggestion. Transient double from the API;
+  /// converted to Decimal when persisted.
+  final double? suggestedConfidence;
 
   QuickCaptureState copyWith({
     String? rawDigits,
@@ -39,8 +53,11 @@ class QuickCaptureState {
     String? selectedAccountId,
     String? description,
     bool? isLoading,
+    bool? isSuggesting,
     Object? error = _sentinel,
     Object? savedTransaction = _sentinel,
+    Object? suggestedCategoryId = _sentinel,
+    Object? suggestedConfidence = _sentinel,
   }) {
     return QuickCaptureState(
       rawDigits: rawDigits ?? this.rawDigits,
@@ -51,10 +68,17 @@ class QuickCaptureState {
       selectedAccountId: selectedAccountId ?? this.selectedAccountId,
       description: description ?? this.description,
       isLoading: isLoading ?? this.isLoading,
+      isSuggesting: isSuggesting ?? this.isSuggesting,
       error: error == _sentinel ? this.error : error as String?,
       savedTransaction: savedTransaction == _sentinel
           ? this.savedTransaction
           : savedTransaction as Transaction?,
+      suggestedCategoryId: suggestedCategoryId == _sentinel
+          ? this.suggestedCategoryId
+          : suggestedCategoryId as String?,
+      suggestedConfidence: suggestedConfidence == _sentinel
+          ? this.suggestedConfidence
+          : suggestedConfidence as double?,
     );
   }
 }
@@ -132,6 +156,50 @@ class QuickCaptureController extends Notifier<QuickCaptureState> {
     state = state.copyWith(description: desc);
   }
 
+  /// Asks the AI to suggest a category for the current description.
+  ///
+  /// Best-effort and explicit-tap only (the user pays per call). Swallows ALL
+  /// errors — offline, 422 (AI not configured), 502 (bad key), 503 (disabled)
+  /// — so it never surfaces an error or blocks the save flow. The suggestion is
+  /// applied only when the returned category id exists among the user's
+  /// categories for the current transaction type.
+  Future<void> suggestCategory() async {
+    final description = state.description.trim();
+    if (description.isEmpty) return;
+    if (state.isSuggesting) return;
+
+    state = state.copyWith(isSuggesting: true);
+    try {
+      final suggestion = await ref
+          .read(aiRepositoryProvider)
+          .categorize(
+            description: description,
+            amount: state.rawDigits.isEmpty ? null : state.rawDigits,
+            transactionType: state.transactionType,
+          );
+      final categoryId = suggestion.categoryId;
+      if (categoryId != null) {
+        final categories = await ref.read(categoriesProvider.future);
+        final matches = categories.any(
+          (c) => c.id == categoryId && c.categoryType == state.transactionType,
+        );
+        if (matches) {
+          // Record the suggestion so save() can compare suggested-vs-chosen
+          // and persist the accuracy metadata onto the transaction.
+          state = state.copyWith(
+            selectedCategoryId: categoryId,
+            suggestedCategoryId: categoryId,
+            suggestedConfidence: suggestion.confidence,
+          );
+        }
+      }
+    } catch (_) {
+      // Best-effort: swallow everything.
+    } finally {
+      state = state.copyWith(isSuggesting: false);
+    }
+  }
+
   /// Validates and saves the transaction via the API.
   Future<void> save() async {
     final s = state;
@@ -163,12 +231,19 @@ class QuickCaptureController extends Notifier<QuickCaptureState> {
       // when Drift has no period yet (first launch before the first pull).
       // Anchoring to the network period risked a period-id mismatch that made
       // the saved expense invisible to the local-first lists.
-      final localPeriod = await ref
-          .read(localActiveTrackingPeriodProvider.future);
+      final localPeriod = await ref.read(
+        localActiveTrackingPeriodProvider.future,
+      );
       final periodId =
           localPeriod?.id ??
           (await ref.read(activeTrackingPeriodProvider.future)).id;
       final localRepo = ref.read(localTransactionRepoProvider);
+
+      // AI accuracy metadata: only record when a suggestion was produced for
+      // this capture. `aiCategorized` is true only when the user kept the
+      // suggested category; the suggested id + confidence are always stored
+      // (when a suggestion existed) so suggested-vs-chosen can be compared.
+      final usedAi = s.suggestedCategoryId != null;
       final tx = await localRepo.create(
         trackingPeriodId: periodId,
         accountId: s.selectedAccountId!,
@@ -176,6 +251,11 @@ class QuickCaptureController extends Notifier<QuickCaptureState> {
         amount: amount,
         categoryId: s.selectedCategoryId,
         description: s.description.trim().isEmpty ? null : s.description.trim(),
+        aiCategorized: usedAi && s.selectedCategoryId == s.suggestedCategoryId,
+        aiConfidence: usedAi && s.suggestedConfidence != null
+            ? Decimal.parse(s.suggestedConfidence!.toStringAsFixed(4))
+            : null,
+        aiSuggestedCategoryId: s.suggestedCategoryId,
       );
       state = state.copyWith(isLoading: false, savedTransaction: tx);
 

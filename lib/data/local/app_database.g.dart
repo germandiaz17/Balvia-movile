@@ -1699,6 +1699,43 @@ class $TransactionsTable extends Transactions
     requiredDuringInsert: false,
     defaultValue: const Constant('synced'),
   );
+  static const VerificationMeta _aiCategorizedMeta = const VerificationMeta(
+    'aiCategorized',
+  );
+  @override
+  late final GeneratedColumn<bool> aiCategorized = GeneratedColumn<bool>(
+    'ai_categorized',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("ai_categorized" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _aiConfidenceMeta = const VerificationMeta(
+    'aiConfidence',
+  );
+  @override
+  late final GeneratedColumn<String> aiConfidence = GeneratedColumn<String>(
+    'ai_confidence',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiSuggestedCategoryIdMeta =
+      const VerificationMeta('aiSuggestedCategoryId');
+  @override
+  late final GeneratedColumn<String> aiSuggestedCategoryId =
+      GeneratedColumn<String>(
+        'ai_suggested_category_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1720,6 +1757,9 @@ class $TransactionsTable extends Transactions
     updatedAt,
     deletedAt,
     syncStatus,
+    aiCategorized,
+    aiConfidence,
+    aiSuggestedCategoryId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1885,6 +1925,33 @@ class $TransactionsTable extends Transactions
         syncStatus.isAcceptableOrUnknown(data['sync_status']!, _syncStatusMeta),
       );
     }
+    if (data.containsKey('ai_categorized')) {
+      context.handle(
+        _aiCategorizedMeta,
+        aiCategorized.isAcceptableOrUnknown(
+          data['ai_categorized']!,
+          _aiCategorizedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ai_confidence')) {
+      context.handle(
+        _aiConfidenceMeta,
+        aiConfidence.isAcceptableOrUnknown(
+          data['ai_confidence']!,
+          _aiConfidenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ai_suggested_category_id')) {
+      context.handle(
+        _aiSuggestedCategoryIdMeta,
+        aiSuggestedCategoryId.isAcceptableOrUnknown(
+          data['ai_suggested_category_id']!,
+          _aiSuggestedCategoryIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1970,6 +2037,18 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}sync_status'],
       )!,
+      aiCategorized: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}ai_categorized'],
+      )!,
+      aiConfidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_confidence'],
+      ),
+      aiSuggestedCategoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_suggested_category_id'],
+      ),
     );
   }
 
@@ -1999,6 +2078,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String updatedAt;
   final String? deletedAt;
   final String syncStatus;
+  final bool aiCategorized;
+  final String? aiConfidence;
+  final String? aiSuggestedCategoryId;
   const Transaction({
     required this.id,
     required this.userId,
@@ -2019,6 +2101,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     required this.updatedAt,
     this.deletedAt,
     required this.syncStatus,
+    required this.aiCategorized,
+    this.aiConfidence,
+    this.aiSuggestedCategoryId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2060,6 +2145,13 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       map['deleted_at'] = Variable<String>(deletedAt);
     }
     map['sync_status'] = Variable<String>(syncStatus);
+    map['ai_categorized'] = Variable<bool>(aiCategorized);
+    if (!nullToAbsent || aiConfidence != null) {
+      map['ai_confidence'] = Variable<String>(aiConfidence);
+    }
+    if (!nullToAbsent || aiSuggestedCategoryId != null) {
+      map['ai_suggested_category_id'] = Variable<String>(aiSuggestedCategoryId);
+    }
     return map;
   }
 
@@ -2100,6 +2192,13 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? const Value.absent()
           : Value(deletedAt),
       syncStatus: Value(syncStatus),
+      aiCategorized: Value(aiCategorized),
+      aiConfidence: aiConfidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiConfidence),
+      aiSuggestedCategoryId: aiSuggestedCategoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiSuggestedCategoryId),
     );
   }
 
@@ -2132,6 +2231,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
       deletedAt: serializer.fromJson<String?>(json['deletedAt']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
+      aiCategorized: serializer.fromJson<bool>(json['aiCategorized']),
+      aiConfidence: serializer.fromJson<String?>(json['aiConfidence']),
+      aiSuggestedCategoryId: serializer.fromJson<String?>(
+        json['aiSuggestedCategoryId'],
+      ),
     );
   }
   @override
@@ -2159,6 +2263,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'updatedAt': serializer.toJson<String>(updatedAt),
       'deletedAt': serializer.toJson<String?>(deletedAt),
       'syncStatus': serializer.toJson<String>(syncStatus),
+      'aiCategorized': serializer.toJson<bool>(aiCategorized),
+      'aiConfidence': serializer.toJson<String?>(aiConfidence),
+      'aiSuggestedCategoryId': serializer.toJson<String?>(
+        aiSuggestedCategoryId,
+      ),
     };
   }
 
@@ -2182,6 +2291,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     String? updatedAt,
     Value<String?> deletedAt = const Value.absent(),
     String? syncStatus,
+    bool? aiCategorized,
+    Value<String?> aiConfidence = const Value.absent(),
+    Value<String?> aiSuggestedCategoryId = const Value.absent(),
   }) => Transaction(
     id: id ?? this.id,
     userId: userId ?? this.userId,
@@ -2208,6 +2320,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     syncStatus: syncStatus ?? this.syncStatus,
+    aiCategorized: aiCategorized ?? this.aiCategorized,
+    aiConfidence: aiConfidence.present ? aiConfidence.value : this.aiConfidence,
+    aiSuggestedCategoryId: aiSuggestedCategoryId.present
+        ? aiSuggestedCategoryId.value
+        : this.aiSuggestedCategoryId,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -2248,6 +2365,15 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
           : this.syncStatus,
+      aiCategorized: data.aiCategorized.present
+          ? data.aiCategorized.value
+          : this.aiCategorized,
+      aiConfidence: data.aiConfidence.present
+          ? data.aiConfidence.value
+          : this.aiConfidence,
+      aiSuggestedCategoryId: data.aiSuggestedCategoryId.present
+          ? data.aiSuggestedCategoryId.value
+          : this.aiSuggestedCategoryId,
     );
   }
 
@@ -2272,13 +2398,16 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
-          ..write('syncStatus: $syncStatus')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('aiCategorized: $aiCategorized, ')
+          ..write('aiConfidence: $aiConfidence, ')
+          ..write('aiSuggestedCategoryId: $aiSuggestedCategoryId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     userId,
     trackingPeriodId,
@@ -2298,7 +2427,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     updatedAt,
     deletedAt,
     syncStatus,
-  );
+    aiCategorized,
+    aiConfidence,
+    aiSuggestedCategoryId,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2321,7 +2453,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
-          other.syncStatus == this.syncStatus);
+          other.syncStatus == this.syncStatus &&
+          other.aiCategorized == this.aiCategorized &&
+          other.aiConfidence == this.aiConfidence &&
+          other.aiSuggestedCategoryId == this.aiSuggestedCategoryId);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -2344,6 +2479,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String> updatedAt;
   final Value<String?> deletedAt;
   final Value<String> syncStatus;
+  final Value<bool> aiCategorized;
+  final Value<String?> aiConfidence;
+  final Value<String?> aiSuggestedCategoryId;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
@@ -2365,6 +2503,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
+    this.aiCategorized = const Value.absent(),
+    this.aiConfidence = const Value.absent(),
+    this.aiSuggestedCategoryId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -2387,6 +2528,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     required String updatedAt,
     this.deletedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
+    this.aiCategorized = const Value.absent(),
+    this.aiConfidence = const Value.absent(),
+    this.aiSuggestedCategoryId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        userId = Value(userId),
@@ -2418,6 +2562,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? updatedAt,
     Expression<String>? deletedAt,
     Expression<String>? syncStatus,
+    Expression<bool>? aiCategorized,
+    Expression<String>? aiConfidence,
+    Expression<String>? aiSuggestedCategoryId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2441,6 +2588,10 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (syncStatus != null) 'sync_status': syncStatus,
+      if (aiCategorized != null) 'ai_categorized': aiCategorized,
+      if (aiConfidence != null) 'ai_confidence': aiConfidence,
+      if (aiSuggestedCategoryId != null)
+        'ai_suggested_category_id': aiSuggestedCategoryId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2465,6 +2616,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String>? updatedAt,
     Value<String?>? deletedAt,
     Value<String>? syncStatus,
+    Value<bool>? aiCategorized,
+    Value<String?>? aiConfidence,
+    Value<String?>? aiSuggestedCategoryId,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -2488,6 +2642,10 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       syncStatus: syncStatus ?? this.syncStatus,
+      aiCategorized: aiCategorized ?? this.aiCategorized,
+      aiConfidence: aiConfidence ?? this.aiConfidence,
+      aiSuggestedCategoryId:
+          aiSuggestedCategoryId ?? this.aiSuggestedCategoryId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2554,6 +2712,17 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (syncStatus.present) {
       map['sync_status'] = Variable<String>(syncStatus.value);
     }
+    if (aiCategorized.present) {
+      map['ai_categorized'] = Variable<bool>(aiCategorized.value);
+    }
+    if (aiConfidence.present) {
+      map['ai_confidence'] = Variable<String>(aiConfidence.value);
+    }
+    if (aiSuggestedCategoryId.present) {
+      map['ai_suggested_category_id'] = Variable<String>(
+        aiSuggestedCategoryId.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2582,6 +2751,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('syncStatus: $syncStatus, ')
+          ..write('aiCategorized: $aiCategorized, ')
+          ..write('aiConfidence: $aiConfidence, ')
+          ..write('aiSuggestedCategoryId: $aiSuggestedCategoryId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7492,6 +7664,9 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       required String updatedAt,
       Value<String?> deletedAt,
       Value<String> syncStatus,
+      Value<bool> aiCategorized,
+      Value<String?> aiConfidence,
+      Value<String?> aiSuggestedCategoryId,
       Value<int> rowid,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
@@ -7515,6 +7690,9 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String> updatedAt,
       Value<String?> deletedAt,
       Value<String> syncStatus,
+      Value<bool> aiCategorized,
+      Value<String?> aiConfidence,
+      Value<String?> aiSuggestedCategoryId,
       Value<int> rowid,
     });
 
@@ -7619,6 +7797,21 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get aiCategorized => $composableBuilder(
+    column: $table.aiCategorized,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiConfidence => $composableBuilder(
+    column: $table.aiConfidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiSuggestedCategoryId => $composableBuilder(
+    column: $table.aiSuggestedCategoryId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7726,6 +7919,21 @@ class $$TransactionsTableOrderingComposer
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get aiCategorized => $composableBuilder(
+    column: $table.aiCategorized,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiConfidence => $composableBuilder(
+    column: $table.aiConfidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiSuggestedCategoryId => $composableBuilder(
+    column: $table.aiSuggestedCategoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TransactionsTableAnnotationComposer
@@ -7811,6 +8019,21 @@ class $$TransactionsTableAnnotationComposer
     column: $table.syncStatus,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get aiCategorized => $composableBuilder(
+    column: $table.aiCategorized,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiConfidence => $composableBuilder(
+    column: $table.aiConfidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiSuggestedCategoryId => $composableBuilder(
+    column: $table.aiSuggestedCategoryId,
+    builder: (column) => column,
+  );
 }
 
 class $$TransactionsTableTableManager
@@ -7863,6 +8086,9 @@ class $$TransactionsTableTableManager
                 Value<String> updatedAt = const Value.absent(),
                 Value<String?> deletedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
+                Value<bool> aiCategorized = const Value.absent(),
+                Value<String?> aiConfidence = const Value.absent(),
+                Value<String?> aiSuggestedCategoryId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
@@ -7884,6 +8110,9 @@ class $$TransactionsTableTableManager
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 syncStatus: syncStatus,
+                aiCategorized: aiCategorized,
+                aiConfidence: aiConfidence,
+                aiSuggestedCategoryId: aiSuggestedCategoryId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7907,6 +8136,9 @@ class $$TransactionsTableTableManager
                 required String updatedAt,
                 Value<String?> deletedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
+                Value<bool> aiCategorized = const Value.absent(),
+                Value<String?> aiConfidence = const Value.absent(),
+                Value<String?> aiSuggestedCategoryId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
@@ -7928,6 +8160,9 @@ class $$TransactionsTableTableManager
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 syncStatus: syncStatus,
+                aiCategorized: aiCategorized,
+                aiConfidence: aiConfidence,
+                aiSuggestedCategoryId: aiSuggestedCategoryId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

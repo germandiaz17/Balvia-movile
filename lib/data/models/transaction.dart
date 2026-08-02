@@ -19,6 +19,9 @@ class Transaction {
     this.clientId,
     this.recurringTransactionId,
     this.occurrenceDate,
+    this.aiCategorized = false,
+    this.aiConfidence,
+    this.aiSuggestedCategoryId,
   });
 
   final String id;
@@ -43,6 +46,14 @@ class Transaction {
   final String? occurrenceDate;
   final DateTime createdAt;
 
+  // AI auto-categorization metadata.
+  //  - aiCategorized: true only when the user kept the AI-suggested category.
+  //  - aiConfidence: decimal 0..1 (wire sends it as a string), null if absent.
+  //  - aiSuggestedCategoryId: the category the AI suggested, null if none.
+  final bool aiCategorized;
+  final Decimal? aiConfidence;
+  final String? aiSuggestedCategoryId;
+
   factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
     id: json['id'] as String,
     trackingPeriodId: json['tracking_period_id'] as String,
@@ -59,7 +70,19 @@ class Transaction {
     recurringTransactionId: json['recurring_transaction_id'] as String?,
     occurrenceDate: json['occurrence_date'] as String?,
     createdAt: DateTime.parse(json['created_at'] as String),
+    aiCategorized: json['ai_categorized'] as bool? ?? false,
+    aiConfidence: _parseConfidence(json['ai_confidence']),
+    aiSuggestedCategoryId: json['ai_suggested_category_id'] as String?,
   );
+
+  /// Parses the wire `ai_confidence` (string decimal) into a [Decimal].
+  /// Returns null when absent or empty.
+  static Decimal? _parseConfidence(Object? raw) {
+    if (raw == null) return null;
+    final str = raw as String;
+    if (str.isEmpty) return null;
+    return Decimal.tryParse(str);
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -77,5 +100,9 @@ class Transaction {
     'recurring_transaction_id': recurringTransactionId,
     'occurrence_date': occurrenceDate,
     'created_at': createdAt.toIso8601String(),
+    'ai_categorized': aiCategorized,
+    if (aiConfidence != null) 'ai_confidence': aiConfidence.toString(),
+    if (aiSuggestedCategoryId != null)
+      'ai_suggested_category_id': aiSuggestedCategoryId,
   };
 }

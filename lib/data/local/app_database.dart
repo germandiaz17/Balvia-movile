@@ -228,7 +228,20 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        // v2: AI auto-categorization metadata on transactions.
+        await m.addColumn(transactions, transactions.aiCategorized);
+        await m.addColumn(transactions, transactions.aiConfidence);
+        await m.addColumn(transactions, transactions.aiSuggestedCategoryId);
+      }
+    },
+  );
 
   /// Wipes every row in every table (including the sync cursor).
   ///

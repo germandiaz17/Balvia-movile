@@ -211,6 +211,11 @@ class SyncEngine {
             row['recurring_transaction_id'] as String?,
           ),
           occurrenceDate: Value(row['occurrence_date'] as String?),
+          aiCategorized: Value(row['ai_categorized'] as bool? ?? false),
+          aiConfidence: Value(row['ai_confidence'] as String?),
+          aiSuggestedCategoryId: Value(
+            row['ai_suggested_category_id'] as String?,
+          ),
         ),
       );
       return;
@@ -248,6 +253,11 @@ class SyncEngine {
           row['recurring_transaction_id'] as String?,
         ),
         occurrenceDate: Value(row['occurrence_date'] as String?),
+        aiCategorized: Value(row['ai_categorized'] as bool? ?? false),
+        aiConfidence: Value(row['ai_confidence'] as String?),
+        aiSuggestedCategoryId: Value(
+          row['ai_suggested_category_id'] as String?,
+        ),
       ),
     );
   }
@@ -527,6 +537,12 @@ class SyncEngine {
         if (t.transferAccountId != null)
           'transfer_account_id': t.transferAccountId,
         if (t.clientId != null) 'client_id': t.clientId,
+        // AI auto-categorization metadata. Confidence is the stored TEXT
+        // decimal; nulls are omitted consistently with the other fields.
+        'ai_categorized': t.aiCategorized,
+        if (t.aiConfidence != null) 'ai_confidence': t.aiConfidence,
+        if (t.aiSuggestedCategoryId != null)
+          'ai_suggested_category_id': t.aiSuggestedCategoryId,
       };
     }
 

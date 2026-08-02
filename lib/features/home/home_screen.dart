@@ -51,6 +51,7 @@ class HomeScreen extends ConsumerWidget {
           ref.invalidate(activeTrackingPeriodProvider);
           ref.invalidate(periodSummaryProvider);
           ref.invalidate(budgetsProvider);
+          ref.invalidate(insightsProvider);
           ref.read(syncControllerProvider.notifier).syncInBackground();
         },
         child: CustomScrollView(
@@ -81,13 +82,8 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: BalviaTheme.spaceMd),
 
-                  // Insight card (spending pace from backend if available)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: BalviaTheme.spaceMd,
-                    ),
-                    child: _InsightSection(periodAsync: periodAsync),
-                  ),
+                  // Insights carousel (backend "during" insights)
+                  const _InsightSection(),
 
                   // "Presupuestos en riesgo"
                   _AtRiskBudgetsSection(
@@ -348,20 +344,80 @@ class _ViewSelector extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _InsightSection extends ConsumerWidget {
-  const _InsightSection({required this.periodAsync});
-  final AsyncValue<TrackingPeriod> periodAsync;
+  const _InsightSection();
+
+  /// Fixed carousel height. Enough for a two-line title/body InsightCard.
+  static const double _height = 130;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Currently shows a static placeholder matching the mockup.
-    // When GET /tracking-periods/:id/insights is consumed, replace with real data.
-    return const InsightCard(
-      title: 'Ritmo de gasto elevado',
-      body:
-          'Vas gastando más rápido de lo ideal. '
-          'Monitorea tus gastos esta semana para mantenerte en presupuesto.',
-      severity: InsightSeverity.warning,
-      icon: Icons.trending_up,
+    final insightsAsync = ref.watch(insightsProvider);
+
+    // Insights are non-critical and online-only: never block the Home.
+    // On error we simply render nothing.
+    return insightsAsync.when(
+      loading: () => const _InsightPlaceholder(height: _height),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (insights) {
+        if (insights.isEmpty) return const SizedBox.shrink();
+
+        // Card ~85% of screen width so the next card peeks (approved mockup).
+        final cardWidth = MediaQuery.of(context).size.width * 0.85;
+
+        return SizedBox(
+          height: _height,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(
+              horizontal: BalviaTheme.spaceMd,
+            ),
+            itemCount: insights.length,
+            separatorBuilder: (_, _) =>
+                const SizedBox(width: BalviaTheme.spaceSm),
+            itemBuilder: (_, i) {
+              final insight = insights[i];
+              return SizedBox(
+                width: cardWidth,
+                child: InsightCard(
+                  title: insight.title,
+                  body: insight.message,
+                  severity: insightSeverityFromString(insight.severity),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Subtle greyed placeholder shown while insights load. Same footprint as one
+/// carousel card so the layout does not jump when data arrives.
+class _InsightPlaceholder extends StatelessWidget {
+  const _InsightPlaceholder({required this.height});
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final cardWidth = MediaQuery.of(context).size.width * 0.85;
+    return SizedBox(
+      height: height,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: BalviaTheme.spaceMd),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            width: cardWidth,
+            height: height - BalviaTheme.spaceSm,
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
