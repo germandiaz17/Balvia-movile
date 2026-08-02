@@ -53,15 +53,17 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         data: (cats) {
           final typeKey = _tabIndex == 0 ? 'expense' : 'income';
 
-          final system = cats
-              .where((c) => c.isSystem && c.categoryType == typeKey)
-              .toList()
-            ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+          final system =
+              cats
+                  .where((c) => c.isSystem && c.categoryType == typeKey)
+                  .toList()
+                ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
-          final own = cats
-              .where((c) => !c.isSystem && c.categoryType == typeKey)
-              .toList()
-            ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+          final own =
+              cats
+                  .where((c) => !c.isSystem && c.categoryType == typeKey)
+                  .toList()
+                ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(categoriesProvider),
@@ -117,10 +119,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                     childAspectRatio: 0.75,
                     children: system
                         .map(
-                          (c) => _CategoryGridCell(
-                            category: c,
-                            readOnly: true,
-                          ),
+                          (c) => _CategoryGridCell(category: c, readOnly: true),
                         )
                         .toList(),
                   ),
@@ -273,7 +272,9 @@ class _CategoryGridCell extends StatelessWidget {
                     width: 16,
                     height: 16,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: Theme.of(context).colorScheme.surface,
@@ -339,8 +340,9 @@ class _DashedCategoryButton extends StatelessWidget {
                     children: [
                       Text(
                         'Nueva categoría personalizada',
-                        style: BalviaTheme.bodyStyle(color: BalviaTheme.seed)
-                            .copyWith(fontWeight: FontWeight.w600),
+                        style: BalviaTheme.bodyStyle(
+                          color: BalviaTheme.seed,
+                        ).copyWith(fontWeight: FontWeight.w600),
                       ),
                       Text(
                         'Agrega tu propio icono, color y nombre',

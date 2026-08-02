@@ -26,8 +26,18 @@ String _formatDayHeader(String yyyyMmDd) {
   final day = DateTime(dt.year, dt.month, dt.day);
 
   const months = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
   ];
 
   if (day == today) return 'Hoy · ${dt.day} ${months[dt.month - 1]}';
@@ -148,7 +158,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       };
                       final selected = _filter == f;
                       return Padding(
-                        padding: const EdgeInsets.only(right: BalviaTheme.spaceSm),
+                        padding: const EdgeInsets.only(
+                          right: BalviaTheme.spaceSm,
+                        ),
                         child: GestureDetector(
                           onTap: () => setState(() => _filter = f),
                           child: AnimatedContainer(
@@ -158,7 +170,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: selected ? BalviaTheme.seed : Colors.transparent,
+                              color: selected
+                                  ? BalviaTheme.seed
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(100),
                               border: Border.all(
                                 color: selected
@@ -169,7 +183,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                             child: Text(
                               label,
                               style: BalviaTheme.captionStyle(
-                                color: selected ? Colors.white : cs.onSurfaceVariant,
+                                color: selected
+                                    ? Colors.white
+                                    : cs.onSurfaceVariant,
                               ).copyWith(fontWeight: FontWeight.w600),
                             ),
                           ),
@@ -180,7 +196,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: BalviaTheme.spaceMd),
+              ),
 
               // ---- Body ----
               txsAsync.when(
@@ -191,16 +209,15 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   child: _ErrorBody(message: apiErrorMessage(e)),
                 ),
                 data: (allTxs) {
-                  final categories = categoriesAsync.value ?? const <Category>[];
+                  final categories =
+                      categoriesAsync.value ?? const <Category>[];
                   final accounts = accountsAsync.value ?? const <Account>[];
 
                   // Apply filter.
                   final txs = _filter == _TxFilter.all
                       ? allTxs
                       : allTxs
-                            .where(
-                              (t) => t.transactionType == _filter.name,
-                            )
+                            .where((t) => t.transactionType == _filter.name)
                             .toList();
 
                   if (txs.isEmpty) {
@@ -379,8 +396,9 @@ class _DaySection extends StatelessWidget {
         dayNet -= tx.amount;
       }
     }
-    final netColor =
-        dayNet >= Decimal.zero ? BalviaTheme.income : BalviaTheme.expense;
+    final netColor = dayNet >= Decimal.zero
+        ? BalviaTheme.income
+        : BalviaTheme.expense;
     final netSign = dayNet >= Decimal.zero ? '+' : '';
 
     return Column(
@@ -698,9 +716,7 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                 selected: {_transactionType},
                 onSelectionChanged: (s) =>
                     setState(() => _transactionType = s.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
               ),
               const SizedBox(height: 12),
             ] else
@@ -717,8 +733,11 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.swap_horiz, size: 16,
-                          color: cs.onSecondaryContainer),
+                      Icon(
+                        Icons.swap_horiz,
+                        size: 16,
+                        color: cs.onSecondaryContainer,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'Transferencia (tipo no editable)',
@@ -731,7 +750,9 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
 
             TextField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 labelText: 'Monto',
                 prefixText: 'COP ',
@@ -750,23 +771,29 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
               ),
               error: (_, _) => const SizedBox.shrink(),
               data: (all) {
-                final filtered = all
-                    .where(
-                      (c) =>
-                          c.categoryType == _transactionType &&
-                          c.parentId == null,
-                    )
-                    .toList()
-                  ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+                final filtered =
+                    all
+                        .where(
+                          (c) =>
+                              c.categoryType == _transactionType &&
+                              c.parentId == null,
+                        )
+                        .toList()
+                      ..sort(
+                        (a, b) => a.displayOrder.compareTo(b.displayOrder),
+                      );
 
                 if (filtered.isEmpty) return const SizedBox.shrink();
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Categoría',
-                        style: BalviaTheme.captionStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Categoría',
+                      style: BalviaTheme.captionStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     SizedBox(
                       height: 40,
@@ -779,8 +806,9 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                           final selected = cat.id == _selectedCategoryId;
                           return GestureDetector(
                             onTap: () => setState(
-                              () => _selectedCategoryId =
-                                  selected ? null : cat.id,
+                              () => _selectedCategoryId = selected
+                                  ? null
+                                  : cat.id,
                             ),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 120),
@@ -794,8 +822,7 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
                                     : cs.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(20),
                                 border: selected
-                                    ? Border.all(
-                                        color: cs.primary, width: 1.5)
+                                    ? Border.all(color: cs.primary, width: 1.5)
                                     : null,
                               ),
                               child: Text(
@@ -825,8 +852,10 @@ class _EditTransactionSheetState extends ConsumerState<_EditTransactionSheet> {
               decoration: const InputDecoration(
                 labelText: 'Cuenta',
                 border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
               ),
               child: widget.accounts.length > 1
                   ? DropdownButton<String>(

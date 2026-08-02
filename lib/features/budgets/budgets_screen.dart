@@ -120,8 +120,7 @@ class BudgetsScreen extends ConsumerWidget {
                       ),
                     ),
                     const Spacer(),
-                    if (period != null)
-                      _PeriodChip(period: period),
+                    if (period != null) _PeriodChip(period: period),
                   ],
                 ),
               ),
@@ -165,14 +164,19 @@ class BudgetsScreen extends ConsumerWidget {
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: BalviaTheme.spaceMd),
+            ),
 
             // ---- PRESUPUESTO GLOBAL section ----
             if (global != null) ...[
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    BalviaTheme.spaceMd, 0, BalviaTheme.spaceMd, BalviaTheme.spaceSm,
+                    BalviaTheme.spaceMd,
+                    0,
+                    BalviaTheme.spaceMd,
+                    BalviaTheme.spaceSm,
                   ),
                   child: Text(
                     'PRESUPUESTO GLOBAL',
@@ -200,7 +204,9 @@ class BudgetsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: BalviaTheme.spaceMd),
+              ),
             ],
 
             // ---- POR CATEGORÍA section ----
@@ -208,7 +214,10 @@ class BudgetsScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    BalviaTheme.spaceMd, 0, BalviaTheme.spaceMd, BalviaTheme.spaceSm,
+                    BalviaTheme.spaceMd,
+                    0,
+                    BalviaTheme.spaceMd,
+                    BalviaTheme.spaceSm,
                   ),
                   child: Text(
                     'POR CATEGORÍA',
@@ -247,7 +256,9 @@ class BudgetsScreen extends ConsumerWidget {
                   );
                 },
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: BalviaTheme.spaceMd),
+              ),
             ],
 
             // ---- Info banner ----
@@ -264,7 +275,9 @@ class BudgetsScreen extends ConsumerWidget {
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: BalviaTheme.spaceMd)),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: BalviaTheme.spaceMd),
+            ),
 
             // ---- "Nuevo presupuesto" wide button ----
             SliverToBoxAdapter(
@@ -421,8 +434,9 @@ class _PeriodChip extends StatelessWidget {
       ),
       child: Text(
         '$start – $end',
-        style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant)
-            .copyWith(fontWeight: FontWeight.w600),
+        style: BalviaTheme.captionStyle(
+          color: cs.onSurfaceVariant,
+        ).copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -430,8 +444,18 @@ class _PeriodChip extends StatelessWidget {
   String _shortDate(String yyyyMmDd) {
     final dt = DateTime.parse(yyyyMmDd);
     const months = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+      'ene',
+      'feb',
+      'mar',
+      'abr',
+      'may',
+      'jun',
+      'jul',
+      'ago',
+      'sep',
+      'oct',
+      'nov',
+      'dic',
     ];
     return '${dt.day} ${months[dt.month - 1]}';
   }
@@ -536,8 +560,7 @@ class _GlobalBudgetCard extends StatelessWidget {
                   height: 36,
                   decoration: BoxDecoration(
                     color: BalviaTheme.seed.withValues(alpha: 0.15),
-                    borderRadius:
-                        BorderRadius.circular(BalviaTheme.radiusSm),
+                    borderRadius: BorderRadius.circular(BalviaTheme.radiusSm),
                   ),
                   child: const Icon(
                     Icons.attach_money,
@@ -572,8 +595,7 @@ class _GlobalBudgetCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: fraction,
                 minHeight: 8,
-                backgroundColor:
-                    cs.onSurface.withValues(alpha: 0.1),
+                backgroundColor: cs.onSurface.withValues(alpha: 0.1),
                 valueColor: AlwaysStoppedAnimation<Color>(barColor),
               ),
             ),
@@ -698,10 +720,7 @@ class _CategoryBudgetCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (badge != null) ...[
-                  badge,
-                  const SizedBox(width: 4),
-                ],
+                if (badge != null) ...[badge, const SizedBox(width: 4)],
                 Text(
                   '${pctDouble.toStringAsFixed(0)}%',
                   style: BalviaTheme.bodyStyle(
@@ -848,7 +867,11 @@ class _InfoBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, color: BalviaTheme.budgetWarning, size: 18),
+          const Icon(
+            Icons.info_outline,
+            color: BalviaTheme.budgetWarning,
+            size: 18,
+          ),
           const SizedBox(width: BalviaTheme.spaceSm),
           Expanded(
             child: Text(
@@ -1048,8 +1071,7 @@ class _BudgetFormSheetState extends State<_BudgetFormSheet> {
                 hint: const Text('Seleccionar categoría'),
                 items: expenseCats
                     .map(
-                      (c) =>
-                          DropdownMenuItem(value: c.id, child: Text(c.name)),
+                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
                     )
                     .toList(),
                 onChanged: widget.existing != null

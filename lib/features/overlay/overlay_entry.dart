@@ -28,7 +28,8 @@ import '../../core/theme.dart';
 import '../../data/local/app_database.dart' as db;
 import '../../data/models/category.dart';
 import '../../data/models/transaction.dart';
-import '../../data/sync/sync_engine.dart' show generateClientId, generateLocalId;
+import '../../data/sync/sync_engine.dart'
+    show generateClientId, generateLocalId;
 import '../../shared/balvia_logo.dart';
 import 'overlay_database.dart';
 import 'overlay_logic.dart';

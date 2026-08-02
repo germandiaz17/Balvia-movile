@@ -82,8 +82,18 @@ class _AccountsBodyState extends ConsumerState<_AccountsBody> {
     // Month/year label for the card caption.
     final now = DateTime.now();
     const months = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+      'ene',
+      'feb',
+      'mar',
+      'abr',
+      'may',
+      'jun',
+      'jul',
+      'ago',
+      'sep',
+      'oct',
+      'nov',
+      'dic',
     ];
     final periodLabel = '${months[now.month - 1]} ${now.year}';
 
@@ -110,7 +120,10 @@ class _AccountsBodyState extends ConsumerState<_AccountsBody> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
-              BalviaTheme.spaceMd, 0, BalviaTheme.spaceMd, BalviaTheme.spaceSm,
+              BalviaTheme.spaceMd,
+              0,
+              BalviaTheme.spaceMd,
+              BalviaTheme.spaceSm,
             ),
             child: Text(
               'MIS CUENTAS',
@@ -161,7 +174,10 @@ class _AccountsBodyState extends ConsumerState<_AccountsBody> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
-                BalviaTheme.spaceMd, 0, BalviaTheme.spaceMd, BalviaTheme.spaceMd,
+                BalviaTheme.spaceMd,
+                0,
+                BalviaTheme.spaceMd,
+                BalviaTheme.spaceMd,
               ),
               child: _CreateAccountForm(
                 onSaved: () {
@@ -317,9 +333,10 @@ class _AccountTile extends StatelessWidget {
     // Resolve color: use account.color (#RRGGBB) if set, else type-based pastel.
     if (account.color != null) {
       final hex = account.color!.replaceFirst('#', '');
-      final value =
-          hex.length == 6 ? int.tryParse('FF$hex', radix: 16) : null;
-      final parsed = value != null ? Color(value) : _typeColor(account.accountType);
+      final value = hex.length == 6 ? int.tryParse('FF$hex', radix: 16) : null;
+      final parsed = value != null
+          ? Color(value)
+          : _typeColor(account.accountType);
       iconBg = parsed.withValues(alpha: 0.15);
       iconColor = parsed;
     } else {
@@ -356,8 +373,9 @@ class _AccountTile extends StatelessWidget {
                 children: [
                   Text(
                     account.name,
-                    style: BalviaTheme.bodyStyle(color: cs.onSurface)
-                        .copyWith(fontWeight: FontWeight.w500),
+                    style: BalviaTheme.bodyStyle(
+                      color: cs.onSurface,
+                    ).copyWith(fontWeight: FontWeight.w500),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -371,21 +389,15 @@ class _AccountTile extends StatelessWidget {
             const SizedBox(width: BalviaTheme.spaceSm),
             Text(
               AmountFormatter.formatCOP(account.currentBalance),
-              style: BalviaTheme.bodyStyle(color: balanceColor)
-                  .copyWith(fontWeight: FontWeight.w700),
+              style: BalviaTheme.bodyStyle(
+                color: balanceColor,
+              ).copyWith(fontWeight: FontWeight.w700),
             ),
             PopupMenuButton<String>(
-              icon: Icon(
-                Icons.more_vert,
-                size: 18,
-                color: cs.onSurfaceVariant,
-              ),
+              icon: Icon(Icons.more_vert, size: 18, color: cs.onSurfaceVariant),
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Eliminar'),
-                ),
+                const PopupMenuItem(value: 'delete', child: Text('Eliminar')),
               ],
               onSelected: (v) {
                 if (v == 'edit') onEdit();
@@ -475,10 +487,7 @@ class _DashedAddButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: cs.outlineVariant,
-            style: BorderStyle.none,
-          ),
+          border: Border.all(color: cs.outlineVariant, style: BorderStyle.none),
           borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
         ),
         child: CustomPaint(
@@ -492,8 +501,9 @@ class _DashedAddButton extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   label,
-                  style: BalviaTheme.bodyStyle(color: BalviaTheme.seed)
-                      .copyWith(fontWeight: FontWeight.w600),
+                  style: BalviaTheme.bodyStyle(
+                    color: BalviaTheme.seed,
+                  ).copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -600,12 +610,14 @@ class _CreateAccountFormState extends ConsumerState<_CreateAccountForm> {
     });
 
     try {
-      await ref.read(accountRepositoryProvider).create(
-        name: name,
-        accountType: _accountType,
-        initialBalance: initialBalance,
-        color: colorHex,
-      );
+      await ref
+          .read(accountRepositoryProvider)
+          .create(
+            name: name,
+            accountType: _accountType,
+            initialBalance: initialBalance,
+            color: colorHex,
+          );
       widget.onSaved();
     } catch (e) {
       setState(() {
@@ -692,7 +704,9 @@ class _CreateAccountFormState extends ConsumerState<_CreateAccountForm> {
             // Initial balance.
             TextField(
               controller: _balanceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 labelText: 'Saldo inicial',
                 prefixText: '\$ ',
@@ -718,8 +732,9 @@ class _CreateAccountFormState extends ConsumerState<_CreateAccountForm> {
                 return Padding(
                   padding: const EdgeInsets.only(right: 10),
                   child: GestureDetector(
-                    onTap: () =>
-                        setState(() => _selectedColor = selected ? null : color),
+                    onTap: () => setState(
+                      () => _selectedColor = selected ? null : color,
+                    ),
                     child: Container(
                       width: 32,
                       height: 32,
@@ -843,12 +858,14 @@ class _EditAccountSheetState extends ConsumerState<_EditAccountSheet> {
     });
 
     try {
-      await ref.read(accountRepositoryProvider).update(
-        widget.account.id,
-        name: name,
-        accountType: _accountType,
-        color: colorHex,
-      );
+      await ref
+          .read(accountRepositoryProvider)
+          .update(
+            widget.account.id,
+            name: name,
+            accountType: _accountType,
+            color: colorHex,
+          );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() {
@@ -958,8 +975,9 @@ class _EditAccountSheetState extends ConsumerState<_EditAccountSheet> {
                 return Padding(
                   padding: const EdgeInsets.only(right: 10),
                   child: GestureDetector(
-                    onTap: () =>
-                        setState(() => _selectedColor = selected ? null : color),
+                    onTap: () => setState(
+                      () => _selectedColor = selected ? null : color,
+                    ),
                     child: Container(
                       width: 32,
                       height: 32,
