@@ -6140,6 +6140,33 @@ class $TrackingPeriodsTable extends TrackingPeriods
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _configPeriodModeMeta = const VerificationMeta(
+    'configPeriodMode',
+  );
+  @override
+  late final GeneratedColumn<String> configPeriodMode = GeneratedColumn<String>(
+    'config_period_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('rolling'),
+  );
+  static const VerificationMeta _isTransitionMeta = const VerificationMeta(
+    'isTransition',
+  );
+  @override
+  late final GeneratedColumn<bool> isTransition = GeneratedColumn<bool>(
+    'is_transition',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_transition" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _closedAtMeta = const VerificationMeta(
     'closedAt',
   );
@@ -6183,6 +6210,8 @@ class $TrackingPeriodsTable extends TrackingPeriods
     status,
     configStartDay,
     configDurationDays,
+    configPeriodMode,
+    isTransition,
     closedAt,
     updatedAt,
     deletedAt,
@@ -6269,6 +6298,24 @@ class $TrackingPeriodsTable extends TrackingPeriods
     } else if (isInserting) {
       context.missing(_configDurationDaysMeta);
     }
+    if (data.containsKey('config_period_mode')) {
+      context.handle(
+        _configPeriodModeMeta,
+        configPeriodMode.isAcceptableOrUnknown(
+          data['config_period_mode']!,
+          _configPeriodModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_transition')) {
+      context.handle(
+        _isTransitionMeta,
+        isTransition.isAcceptableOrUnknown(
+          data['is_transition']!,
+          _isTransitionMeta,
+        ),
+      );
+    }
     if (data.containsKey('closed_at')) {
       context.handle(
         _closedAtMeta,
@@ -6330,6 +6377,14 @@ class $TrackingPeriodsTable extends TrackingPeriods
         DriftSqlType.int,
         data['${effectivePrefix}config_duration_days'],
       )!,
+      configPeriodMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}config_period_mode'],
+      )!,
+      isTransition: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_transition'],
+      )!,
       closedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}closed_at'],
@@ -6360,6 +6415,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
   final String status;
   final int configStartDay;
   final int configDurationDays;
+  final String configPeriodMode;
+  final bool isTransition;
   final String? closedAt;
   final String updatedAt;
   final String? deletedAt;
@@ -6372,6 +6429,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
     required this.status,
     required this.configStartDay,
     required this.configDurationDays,
+    required this.configPeriodMode,
+    required this.isTransition,
     this.closedAt,
     required this.updatedAt,
     this.deletedAt,
@@ -6387,6 +6446,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
     map['status'] = Variable<String>(status);
     map['config_start_day'] = Variable<int>(configStartDay);
     map['config_duration_days'] = Variable<int>(configDurationDays);
+    map['config_period_mode'] = Variable<String>(configPeriodMode);
+    map['is_transition'] = Variable<bool>(isTransition);
     if (!nullToAbsent || closedAt != null) {
       map['closed_at'] = Variable<String>(closedAt);
     }
@@ -6407,6 +6468,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
       status: Value(status),
       configStartDay: Value(configStartDay),
       configDurationDays: Value(configDurationDays),
+      configPeriodMode: Value(configPeriodMode),
+      isTransition: Value(isTransition),
       closedAt: closedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(closedAt),
@@ -6431,6 +6494,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
       status: serializer.fromJson<String>(json['status']),
       configStartDay: serializer.fromJson<int>(json['configStartDay']),
       configDurationDays: serializer.fromJson<int>(json['configDurationDays']),
+      configPeriodMode: serializer.fromJson<String>(json['configPeriodMode']),
+      isTransition: serializer.fromJson<bool>(json['isTransition']),
       closedAt: serializer.fromJson<String?>(json['closedAt']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
       deletedAt: serializer.fromJson<String?>(json['deletedAt']),
@@ -6448,6 +6513,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
       'status': serializer.toJson<String>(status),
       'configStartDay': serializer.toJson<int>(configStartDay),
       'configDurationDays': serializer.toJson<int>(configDurationDays),
+      'configPeriodMode': serializer.toJson<String>(configPeriodMode),
+      'isTransition': serializer.toJson<bool>(isTransition),
       'closedAt': serializer.toJson<String?>(closedAt),
       'updatedAt': serializer.toJson<String>(updatedAt),
       'deletedAt': serializer.toJson<String?>(deletedAt),
@@ -6463,6 +6530,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
     String? status,
     int? configStartDay,
     int? configDurationDays,
+    String? configPeriodMode,
+    bool? isTransition,
     Value<String?> closedAt = const Value.absent(),
     String? updatedAt,
     Value<String?> deletedAt = const Value.absent(),
@@ -6475,6 +6544,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
     status: status ?? this.status,
     configStartDay: configStartDay ?? this.configStartDay,
     configDurationDays: configDurationDays ?? this.configDurationDays,
+    configPeriodMode: configPeriodMode ?? this.configPeriodMode,
+    isTransition: isTransition ?? this.isTransition,
     closedAt: closedAt.present ? closedAt.value : this.closedAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -6495,6 +6566,12 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
       configDurationDays: data.configDurationDays.present
           ? data.configDurationDays.value
           : this.configDurationDays,
+      configPeriodMode: data.configPeriodMode.present
+          ? data.configPeriodMode.value
+          : this.configPeriodMode,
+      isTransition: data.isTransition.present
+          ? data.isTransition.value
+          : this.isTransition,
       closedAt: data.closedAt.present ? data.closedAt.value : this.closedAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -6512,6 +6589,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
           ..write('status: $status, ')
           ..write('configStartDay: $configStartDay, ')
           ..write('configDurationDays: $configDurationDays, ')
+          ..write('configPeriodMode: $configPeriodMode, ')
+          ..write('isTransition: $isTransition, ')
           ..write('closedAt: $closedAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -6529,6 +6608,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
     status,
     configStartDay,
     configDurationDays,
+    configPeriodMode,
+    isTransition,
     closedAt,
     updatedAt,
     deletedAt,
@@ -6545,6 +6626,8 @@ class TrackingPeriod extends DataClass implements Insertable<TrackingPeriod> {
           other.status == this.status &&
           other.configStartDay == this.configStartDay &&
           other.configDurationDays == this.configDurationDays &&
+          other.configPeriodMode == this.configPeriodMode &&
+          other.isTransition == this.isTransition &&
           other.closedAt == this.closedAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -6559,6 +6642,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
   final Value<String> status;
   final Value<int> configStartDay;
   final Value<int> configDurationDays;
+  final Value<String> configPeriodMode;
+  final Value<bool> isTransition;
   final Value<String?> closedAt;
   final Value<String> updatedAt;
   final Value<String?> deletedAt;
@@ -6572,6 +6657,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
     this.status = const Value.absent(),
     this.configStartDay = const Value.absent(),
     this.configDurationDays = const Value.absent(),
+    this.configPeriodMode = const Value.absent(),
+    this.isTransition = const Value.absent(),
     this.closedAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -6586,6 +6673,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
     required String status,
     required int configStartDay,
     required int configDurationDays,
+    this.configPeriodMode = const Value.absent(),
+    this.isTransition = const Value.absent(),
     this.closedAt = const Value.absent(),
     required String updatedAt,
     this.deletedAt = const Value.absent(),
@@ -6608,6 +6697,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
     Expression<String>? status,
     Expression<int>? configStartDay,
     Expression<int>? configDurationDays,
+    Expression<String>? configPeriodMode,
+    Expression<bool>? isTransition,
     Expression<String>? closedAt,
     Expression<String>? updatedAt,
     Expression<String>? deletedAt,
@@ -6623,6 +6714,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
       if (configStartDay != null) 'config_start_day': configStartDay,
       if (configDurationDays != null)
         'config_duration_days': configDurationDays,
+      if (configPeriodMode != null) 'config_period_mode': configPeriodMode,
+      if (isTransition != null) 'is_transition': isTransition,
       if (closedAt != null) 'closed_at': closedAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -6639,6 +6732,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
     Value<String>? status,
     Value<int>? configStartDay,
     Value<int>? configDurationDays,
+    Value<String>? configPeriodMode,
+    Value<bool>? isTransition,
     Value<String?>? closedAt,
     Value<String>? updatedAt,
     Value<String?>? deletedAt,
@@ -6653,6 +6748,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
       status: status ?? this.status,
       configStartDay: configStartDay ?? this.configStartDay,
       configDurationDays: configDurationDays ?? this.configDurationDays,
+      configPeriodMode: configPeriodMode ?? this.configPeriodMode,
+      isTransition: isTransition ?? this.isTransition,
       closedAt: closedAt ?? this.closedAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -6687,6 +6784,12 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
     if (configDurationDays.present) {
       map['config_duration_days'] = Variable<int>(configDurationDays.value);
     }
+    if (configPeriodMode.present) {
+      map['config_period_mode'] = Variable<String>(configPeriodMode.value);
+    }
+    if (isTransition.present) {
+      map['is_transition'] = Variable<bool>(isTransition.value);
+    }
     if (closedAt.present) {
       map['closed_at'] = Variable<String>(closedAt.value);
     }
@@ -6713,6 +6816,8 @@ class TrackingPeriodsCompanion extends UpdateCompanion<TrackingPeriod> {
           ..write('status: $status, ')
           ..write('configStartDay: $configStartDay, ')
           ..write('configDurationDays: $configDurationDays, ')
+          ..write('configPeriodMode: $configPeriodMode, ')
+          ..write('isTransition: $isTransition, ')
           ..write('closedAt: $closedAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -9748,6 +9853,8 @@ typedef $$TrackingPeriodsTableCreateCompanionBuilder =
       required String status,
       required int configStartDay,
       required int configDurationDays,
+      Value<String> configPeriodMode,
+      Value<bool> isTransition,
       Value<String?> closedAt,
       required String updatedAt,
       Value<String?> deletedAt,
@@ -9763,6 +9870,8 @@ typedef $$TrackingPeriodsTableUpdateCompanionBuilder =
       Value<String> status,
       Value<int> configStartDay,
       Value<int> configDurationDays,
+      Value<String> configPeriodMode,
+      Value<bool> isTransition,
       Value<String?> closedAt,
       Value<String> updatedAt,
       Value<String?> deletedAt,
@@ -9815,6 +9924,16 @@ class $$TrackingPeriodsTableFilterComposer
 
   ColumnFilters<int> get configDurationDays => $composableBuilder(
     column: $table.configDurationDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get configPeriodMode => $composableBuilder(
+    column: $table.configPeriodMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isTransition => $composableBuilder(
+    column: $table.isTransition,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9883,6 +10002,16 @@ class $$TrackingPeriodsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get configPeriodMode => $composableBuilder(
+    column: $table.configPeriodMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isTransition => $composableBuilder(
+    column: $table.isTransition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get closedAt => $composableBuilder(
     column: $table.closedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9935,6 +10064,16 @@ class $$TrackingPeriodsTableAnnotationComposer
 
   GeneratedColumn<int> get configDurationDays => $composableBuilder(
     column: $table.configDurationDays,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get configPeriodMode => $composableBuilder(
+    column: $table.configPeriodMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isTransition => $composableBuilder(
+    column: $table.isTransition,
     builder: (column) => column,
   );
 
@@ -9993,6 +10132,8 @@ class $$TrackingPeriodsTableTableManager
                 Value<String> status = const Value.absent(),
                 Value<int> configStartDay = const Value.absent(),
                 Value<int> configDurationDays = const Value.absent(),
+                Value<String> configPeriodMode = const Value.absent(),
+                Value<bool> isTransition = const Value.absent(),
                 Value<String?> closedAt = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
                 Value<String?> deletedAt = const Value.absent(),
@@ -10006,6 +10147,8 @@ class $$TrackingPeriodsTableTableManager
                 status: status,
                 configStartDay: configStartDay,
                 configDurationDays: configDurationDays,
+                configPeriodMode: configPeriodMode,
+                isTransition: isTransition,
                 closedAt: closedAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -10021,6 +10164,8 @@ class $$TrackingPeriodsTableTableManager
                 required String status,
                 required int configStartDay,
                 required int configDurationDays,
+                Value<String> configPeriodMode = const Value.absent(),
+                Value<bool> isTransition = const Value.absent(),
                 Value<String?> closedAt = const Value.absent(),
                 required String updatedAt,
                 Value<String?> deletedAt = const Value.absent(),
@@ -10034,6 +10179,8 @@ class $$TrackingPeriodsTableTableManager
                 status: status,
                 configStartDay: configStartDay,
                 configDurationDays: configDurationDays,
+                configPeriodMode: configPeriodMode,
+                isTransition: isTransition,
                 closedAt: closedAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

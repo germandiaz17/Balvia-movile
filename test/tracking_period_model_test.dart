@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:balvia_mobile/data/models/tracking_period.dart';
+import 'package:balvia_mobile/data/models/user_settings.dart'
+    show kPeriodModeRolling;
 
 void main() {
   // A period that starts 2026-07-04 and ends 2026-08-02 (30 days).
@@ -78,6 +80,47 @@ void main() {
         ..['end_date'] = '2026-07-10';
       final tp = TrackingPeriod.fromJson(json);
       expect(tp.durationDays, 1);
+    });
+  });
+
+  group('period mode', () {
+    test('defaults to rolling when a legacy backend omits the fields', () {
+      final tp = TrackingPeriod.fromJson(sampleJson);
+
+      expect(tp.configPeriodMode, kPeriodModeRolling);
+      expect(tp.isTransition, isFalse);
+      expect(tp.isWholeCalendarMonth, isFalse);
+    });
+
+    test('a full calendar month can be named instead of shown as a range', () {
+      final tp = TrackingPeriod.fromJson({
+        ...sampleJson,
+        'start_date': '2026-08-01',
+        'end_date': '2026-08-31',
+        'config_period_mode': 'calendar_month',
+        'is_transition': false,
+      });
+
+      expect(tp.isWholeCalendarMonth, isTrue);
+      expect(tp.durationDays, 31);
+    });
+
+    test('a bridge is calendar mode but never a whole month', () {
+      final tp = TrackingPeriod.fromJson({
+        ...sampleJson,
+        'start_date': '2026-08-04',
+        'end_date': '2026-08-31',
+        'config_period_mode': 'calendar_month',
+        'is_transition': true,
+      });
+
+      expect(tp.isTransition, isTrue);
+      expect(
+        tp.isWholeCalendarMonth,
+        isFalse,
+        reason: 'a bridge is not a month',
+      );
+      expect(tp.durationDays, 28);
     });
   });
 }

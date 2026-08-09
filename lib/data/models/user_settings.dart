@@ -9,6 +9,7 @@ class UserSettings {
   const UserSettings({
     required this.trackingStartDay,
     required this.trackingDurationDays,
+    required this.trackingPeriodMode,
     required this.defaultCurrency,
     required this.countryCode,
     required this.locale,
@@ -25,8 +26,12 @@ class UserSettings {
   /// recorded but does not drive the rollover.
   final int trackingStartDay;
 
-  /// 28–31, enforced by chk_tracking_duration.
+  /// 28–31, enforced by chk_tracking_duration. Inert in calendar mode, where the
+  /// month decides the length — kept so switching back restores the preference.
   final int trackingDurationDays;
+
+  /// [kPeriodModeRolling] or [kPeriodModeCalendar].
+  final String trackingPeriodMode;
 
   final String defaultCurrency;
   final String countryCode;
@@ -39,7 +44,9 @@ class UserSettings {
 
   final DateTime? updatedAt;
 
-  /// Always true — kept on the wire so the client does not hardcode rule 8.
+  /// True in the normal, deferred case. False only when the backend's onboarding
+  /// carve-out reshaped the active period there and then, which it does for a
+  /// first period that has no transactions yet.
   final bool appliesToNextPeriod;
 
   /// Last day of the period currently running. Null when there is none.
@@ -49,9 +56,13 @@ class UserSettings {
   DateTime? get nextPeriodStartDate =>
       activePeriodEndDate?.add(const Duration(days: 1));
 
+  bool get usesCalendarMonths => trackingPeriodMode == kPeriodModeCalendar;
+
   factory UserSettings.fromJson(Map<String, dynamic> json) => UserSettings(
     trackingStartDay: json['tracking_start_day'] as int,
     trackingDurationDays: json['tracking_duration_days'] as int,
+    trackingPeriodMode:
+        json['tracking_period_mode'] as String? ?? kPeriodModeRolling,
     defaultCurrency: json['default_currency'] as String? ?? 'COP',
     countryCode: json['country_code'] as String? ?? 'CO',
     locale: json['locale'] as String? ?? 'es-CO',
@@ -70,6 +81,10 @@ class UserSettings {
 
 /// Durations the schema accepts (chk_tracking_duration BETWEEN 28 AND 31).
 const kTrackingDurations = <int>[28, 29, 30, 31];
+
+/// Period modes, mirroring domain.PeriodMode* in the backend.
+const kPeriodModeRolling = 'rolling';
+const kPeriodModeCalendar = 'calendar_month';
 
 const _monthNames = [
   'enero',

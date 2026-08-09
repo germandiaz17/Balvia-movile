@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
 import '../core/amount_formatter.dart';
+import '../core/period_math.dart';
 import '../core/theme.dart';
 import '../data/models/tracking_period.dart';
 
@@ -72,7 +73,9 @@ class PeriodHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Seguimiento activo',
+                  period.isTransition
+                      ? 'Seguimiento de transición'
+                      : 'Seguimiento activo',
                   style: BalviaTheme.captionStyle(color: Colors.white70),
                 ),
                 const Spacer(),
@@ -96,7 +99,11 @@ class PeriodHeroCard extends StatelessWidget {
             ),
             const SizedBox(height: BalviaTheme.spaceXs),
             Text(
-              '${_fmtDate(period.startDate)} – ${_fmtDate(period.endDate)}',
+              // A whole calendar month reads better by name than as a range:
+              // "Agosto 2026" instead of "1 ago – 31 ago".
+              period.isWholeCalendarMonth
+                  ? monthTitle(DateTime.parse(period.startDate))
+                  : '${_fmtDate(period.startDate)} – ${_fmtDate(period.endDate)}',
               style: BalviaTheme.bodyStyle(
                 color: Colors.white,
               ).copyWith(fontWeight: FontWeight.w500),

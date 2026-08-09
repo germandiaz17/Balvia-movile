@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/period_math.dart';
 import '../data/models/tracking_period.dart';
 
 /// Compact header card for the active tracking period.
@@ -61,11 +62,32 @@ class PeriodHeader extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (period.isTransition) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cs.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Transición',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: cs.onTertiaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              '${_fmt(period.startDate)} – ${_fmt(period.endDate)}',
+              period.isWholeCalendarMonth
+                  ? monthTitle(DateTime.parse(period.startDate))
+                  : '${_fmt(period.startDate)} – ${_fmt(period.endDate)}',
               style: theme.textTheme.titleSmall,
             ),
             const SizedBox(height: 8),

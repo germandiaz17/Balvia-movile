@@ -19,11 +19,14 @@ class UserSettingsRepository {
   /// while sending it as null would too, but sending everything would force the
   /// caller to know every current value. Keep it sparse.
   ///
-  /// Changing [trackingDurationDays] does not touch the running period; it
-  /// applies to the next one (domain rule 8).
+  /// Changing [trackingDurationDays] or [trackingPeriodMode] does not touch the
+  /// running period; it applies to the next one (domain rule 8). The one
+  /// exception is a first period with no transactions, which the backend
+  /// reshapes on the spot and reports back as `appliesToNextPeriod == false`.
   Future<UserSettings> update({
     int? trackingStartDay,
     int? trackingDurationDays,
+    String? trackingPeriodMode,
     String? defaultCurrency,
     String? locale,
     String? theme,
@@ -33,6 +36,9 @@ class UserSettingsRepository {
     if (trackingStartDay != null) body['tracking_start_day'] = trackingStartDay;
     if (trackingDurationDays != null) {
       body['tracking_duration_days'] = trackingDurationDays;
+    }
+    if (trackingPeriodMode != null) {
+      body['tracking_period_mode'] = trackingPeriodMode;
     }
     if (defaultCurrency != null) body['default_currency'] = defaultCurrency;
     if (locale != null) body['locale'] = locale;

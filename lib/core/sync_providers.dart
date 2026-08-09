@@ -88,6 +88,8 @@ final localActiveTrackingPeriodProvider = StreamProvider<model.TrackingPeriod?>(
         status: row.status,
         configStartDay: row.configStartDay,
         configDurationDays: row.configDurationDays,
+        configPeriodMode: row.configPeriodMode,
+        isTransition: row.isTransition,
         closedAt: row.closedAt != null ? DateTime.parse(row.closedAt!) : null,
       );
     });

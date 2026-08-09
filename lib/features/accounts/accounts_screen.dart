@@ -864,6 +864,9 @@ class _EditAccountSheetState extends ConsumerState<_EditAccountSheet> {
             widget.account.id,
             name: name,
             accountType: _accountType,
+            // The PUT is a full replace: without echoing the icon back, every
+            // edit silently wiped it.
+            icon: widget.account.icon,
             color: colorHex,
           );
       if (mounted) Navigator.of(context).pop(true);

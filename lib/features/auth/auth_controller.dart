@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/providers.dart';
 import '../../core/sync_providers.dart';
 import '../../data/models/user.dart';
+import '../onboarding/onboarding_controller.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -53,6 +54,8 @@ class AuthController extends Notifier<AuthState> {
     try {
       final user = await ref.read(authRepositoryProvider).me();
       await _adoptLocalData(user);
+      // Resume the first-run wizard if the user quit halfway through it.
+      await ref.read(onboardingControllerProvider.notifier).restoreFor(user.id);
       state = AuthState(AuthStatus.authenticated, user);
     } catch (_) {
       state = const AuthState(AuthStatus.unauthenticated);
@@ -64,6 +67,7 @@ class AuthController extends Notifier<AuthState> {
         .read(authRepositoryProvider)
         .login(email: email, password: password);
     await _adoptLocalData(user);
+    await ref.read(onboardingControllerProvider.notifier).restoreFor(user.id);
     state = AuthState(AuthStatus.authenticated, user);
   }
 
@@ -72,6 +76,9 @@ class AuthController extends Notifier<AuthState> {
         .read(authRepositoryProvider)
         .register(email: email, password: password, fullName: fullName);
     await _adoptLocalData(user);
+    // Flag before flipping to authenticated: the router reads this
+    // synchronously on the very redirect that the state change triggers.
+    await ref.read(onboardingControllerProvider.notifier).markPending(user.id);
     state = AuthState(AuthStatus.authenticated, user);
   }
 

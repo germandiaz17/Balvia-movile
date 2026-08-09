@@ -30,6 +30,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:uuid/uuid.dart';
 
 import '../local/app_database.dart' as drift;
+import '../models/user_settings.dart' show kPeriodModeRolling;
 import 'sync_models.dart';
 
 const _epoch = '1970-01-01T00:00:00Z';
@@ -419,6 +420,11 @@ class SyncEngine {
         status: Value(row['status'] as String),
         configStartDay: Value(row['config_start_day'] as int),
         configDurationDays: Value(row['config_duration_days'] as int),
+        // Defensive: a backend older than migration 000018 omits both.
+        configPeriodMode: Value(
+          row['config_period_mode'] as String? ?? kPeriodModeRolling,
+        ),
+        isTransition: Value(row['is_transition'] as bool? ?? false),
         closedAt: Value(row['closed_at'] as String?),
         updatedAt: Value(row['updated_at'] as String),
         deletedAt: Value(row['deleted_at'] as String?),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_error.dart';
+import '../../core/period_math.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../data/models/user_settings.dart';
@@ -11,10 +12,15 @@ import '../../data/models/user_settings.dart';
 //
 // Domain rule 8: a change to the tracking configuration applies to the NEXT
 // seguimiento, never to the one currently running. That is the whole UX problem
-// here — a user who changes the duration and sees today's period unchanged will
+// here — a user who changes something and sees today's period unchanged will
 // think it did not save. So the cut-off date is stated up front in a fixed
 // banner (not a SnackBar that scrolls away), repeated in the confirmation
 // dialog, and repeated again on success.
+//
+// Switching to calendar months adds a second thing to explain: the gap between
+// the current period's end and the 1st of a month becomes a one-off transition
+// period. Users are told its exact dates before they commit, because finding an
+// unexplained 27-day seguimiento later is alarming.
 // ---------------------------------------------------------------------------
 
 class TrackingSettingsScreen extends ConsumerStatefulWidget {
@@ -27,8 +33,9 @@ class TrackingSettingsScreen extends ConsumerStatefulWidget {
 
 class _TrackingSettingsScreenState
     extends ConsumerState<TrackingSettingsScreen> {
-  /// Pending selection, null until the user touches the selector.
+  /// Pending selections, null until the user touches the corresponding control.
   int? _selectedDuration;
+  String? _selectedMode;
   bool _saving = false;
 
   @override
@@ -49,7 +56,11 @@ class _TrackingSettingsScreenState
   Widget _buildBody(UserSettings settings) {
     final cs = Theme.of(context).colorScheme;
     final duration = _selectedDuration ?? settings.trackingDurationDays;
-    final dirty = duration != settings.trackingDurationDays;
+    final mode = _selectedMode ?? settings.trackingPeriodMode;
+    final dirty =
+        duration != settings.trackingDurationDays ||
+        mode != settings.trackingPeriodMode;
+    final isCalendar = mode == kPeriodModeCalendar;
 
     return ListView(
       padding: const EdgeInsets.all(BalviaTheme.spaceMd),
@@ -58,55 +69,94 @@ class _TrackingSettingsScreenState
         const SizedBox(height: BalviaTheme.spaceLg),
 
         Text(
-          'DURACIÓN DEL SEGUIMIENTO',
+          'CÓMO SE CUENTAN TUS SEGUIMIENTOS',
           style: BalviaTheme.overlineStyle(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: BalviaTheme.spaceSm),
-        // A closed 28–31 range, so a segmented control rather than a free field.
-        SegmentedButton<int>(
-          segments: [
-            for (final d in kTrackingDurations)
-              ButtonSegment(value: d, label: Text('$d')),
-          ],
-          selected: {duration},
-          onSelectionChanged: _saving
-              ? null
-              : (s) => setState(() => _selectedDuration = s.first),
+        _ModeOption(
+          value: kPeriodModeCalendar,
+          groupValue: mode,
+          icon: Icons.calendar_month_outlined,
+          title: 'Mes calendario',
+          subtitle:
+              'Del día 1 al último día de cada mes. Para quien piensa y cobra '
+              'por mes.',
+          onChanged: _saving ? null : (v) => setState(() => _selectedMode = v),
         ),
-        const SizedBox(height: BalviaTheme.spaceXs),
-        Text(
-          'Cuántos días dura cada seguimiento. Entre 28 y 31.',
-          style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+        const SizedBox(height: BalviaTheme.spaceSm),
+        _ModeOption(
+          value: kPeriodModeRolling,
+          groupValue: mode,
+          icon: Icons.timelapse_outlined,
+          title: 'Ciclo personalizado',
+          subtitle:
+              'Bloques de una duración fija, encadenados. Para quien no cobra '
+              'en fechas de calendario.',
+          onChanged: _saving ? null : (v) => setState(() => _selectedMode = v),
         ),
+
+        // The duration only means something in rolling mode: a calendar month
+        // is as long as the month is. Showing the selector anyway would invite
+        // the user to set a number that quietly does nothing.
+        if (!isCalendar) ...[
+          const SizedBox(height: BalviaTheme.spaceLg),
+          Text(
+            'DURACIÓN DEL SEGUIMIENTO',
+            style: BalviaTheme.overlineStyle(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: BalviaTheme.spaceSm),
+          // A closed 28–31 range, so a segmented control rather than a free field.
+          SegmentedButton<int>(
+            segments: [
+              for (final d in kTrackingDurations)
+                ButtonSegment(value: d, label: Text('$d')),
+            ],
+            selected: {duration},
+            onSelectionChanged: _saving
+                ? null
+                : (s) => setState(() => _selectedDuration = s.first),
+          ),
+          const SizedBox(height: BalviaTheme.spaceXs),
+          Text(
+            'Cuántos días dura cada seguimiento. Entre 28 y 31.',
+            style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+          ),
+        ],
         const SizedBox(height: BalviaTheme.spaceMd),
 
-        _DeferredChangeBanner(settings: settings),
+        _DeferredChangeBanner(
+          settings: settings,
+          pendingMode: mode,
+          pendingDuration: duration,
+        ),
         const SizedBox(height: BalviaTheme.spaceLg),
 
-        Text(
-          'DÍA DE INICIO',
-          style: BalviaTheme.overlineStyle(color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: BalviaTheme.spaceSm),
-        // Read-only on purpose: the rollover always starts the next period the
-        // day after the previous one ends, so this value is recorded but does
-        // not steer anything yet. Showing it as editable would be a lie.
-        ListTile(
-          enabled: false,
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.event_outlined, color: cs.onSurfaceVariant),
-          title: Text('Día ${settings.trackingStartDay}'),
-          subtitle: const Text(
-            'Se ajusta automáticamente: cada seguimiento empieza al día '
-            'siguiente de que termina el anterior.',
+        if (!isCalendar) ...[
+          Text(
+            'DÍA DE INICIO',
+            style: BalviaTheme.overlineStyle(color: cs.onSurfaceVariant),
           ),
-        ),
-        const SizedBox(height: BalviaTheme.spaceLg),
+          const SizedBox(height: BalviaTheme.spaceSm),
+          // Read-only on purpose: the rollover always starts the next period the
+          // day after the previous one ends, so this value is recorded but does
+          // not steer anything yet. Showing it as editable would be a lie.
+          ListTile(
+            enabled: false,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.event_outlined, color: cs.onSurfaceVariant),
+            title: Text('Día ${settings.trackingStartDay}'),
+            subtitle: const Text(
+              'Se ajusta automáticamente: cada seguimiento empieza al día '
+              'siguiente de que termina el anterior.',
+            ),
+          ),
+          const SizedBox(height: BalviaTheme.spaceLg),
+        ],
 
         FilledButton(
           onPressed: (!dirty || _saving)
               ? null
-              : () => _confirmAndSave(settings, duration),
+              : () => _confirmAndSave(settings, mode, duration),
           child: _saving
               ? const SizedBox(
                   height: 18,
@@ -119,22 +169,23 @@ class _TrackingSettingsScreenState
     );
   }
 
-  Future<void> _confirmAndSave(UserSettings settings, int duration) async {
-    final cutoff = settings.activePeriodEndDate;
-    final nextStart = settings.nextPeriodStartDate;
+  Future<void> _confirmAndSave(
+    UserSettings settings,
+    String mode,
+    int duration,
+  ) async {
+    final modeChanged = mode != settings.trackingPeriodMode;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cambiar la duración'),
+        title: Text(
+          modeChanged
+              ? 'Cambiar el tipo de seguimiento'
+              : 'Cambiar la duración',
+        ),
         content: Text(
-          cutoff == null
-              ? 'Tus seguimientos pasarán a durar $duration días. El cambio '
-                    'aplica al próximo seguimiento.'
-              : 'Tus seguimientos pasarán a durar $duration días.\n\n'
-                    'Tu seguimiento actual termina el ${longDate(cutoff)} y no '
-                    'se modifica. La nueva duración se usa desde el que empieza '
-                    'el ${longDate(nextStart!)}.',
+          _changeSummary(settings: settings, mode: mode, duration: duration),
         ),
         actions: [
           TextButton(
@@ -155,16 +206,34 @@ class _TrackingSettingsScreenState
     setState(() => _saving = true);
 
     try {
-      await ref
+      // Send only what changed: the backend update is a COALESCE partial, so an
+      // absent key leaves the column alone.
+      final updated = await ref
           .read(userSettingsRepositoryProvider)
-          .update(trackingDurationDays: duration);
+          .update(
+            trackingPeriodMode: modeChanged ? mode : null,
+            trackingDurationDays: duration != settings.trackingDurationDays
+                ? duration
+                : null,
+          );
       ref.invalidate(userSettingsProvider);
-      if (mounted) setState(() => _selectedDuration = null);
+      if (mounted) {
+        setState(() {
+          _selectedDuration = null;
+          _selectedMode = null;
+        });
+      }
 
+      // The backend reshapes a pristine first period on the spot instead of
+      // deferring, and says so. Reporting "applies later" in that case would be
+      // plainly wrong.
+      final nextStart = updated.nextPeriodStartDate;
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            nextStart == null
+            !updated.appliesToNextPeriod
+                ? 'Listo, tu seguimiento actual ya usa el nuevo formato'
+                : nextStart == null
                 ? 'Se aplicará al próximo seguimiento'
                 : 'Se aplicará desde el seguimiento que empieza el '
                       '${longDate(nextStart)}',
@@ -183,6 +252,153 @@ class _TrackingSettingsScreenState
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared copy
+//
+// One place builds the sentence describing a pending change, so the banner, the
+// confirmation dialog and any future surface cannot drift apart.
+// ---------------------------------------------------------------------------
+
+/// Describes what the NEXT period will look like under [mode] and [duration].
+///
+/// Deliberately phrased around the outcome rather than around "what changed",
+/// so the same sentence is true whether the user has a pending edit or is just
+/// looking at their settled configuration. Wording it as a diff produced copy
+/// that talked about "the new duration" to someone on calendar months, where
+/// duration means nothing at all.
+String _changeSummary({
+  required UserSettings settings,
+  required String mode,
+  required int duration,
+}) {
+  final end = settings.activePeriodEndDate;
+  final isCalendar = mode == kPeriodModeCalendar;
+
+  if (end == null) {
+    return isCalendar
+        ? 'Tus seguimientos serán meses calendario, del día 1 al último día '
+              'de cada mes.'
+        : 'Tus seguimientos durarán $duration días.';
+  }
+
+  final buffer = StringBuffer(
+    'Tu seguimiento actual termina el ${longDate(end)} y no se modifica.\n\n',
+  );
+  final next = nextPeriodRange(
+    prevEnd: end,
+    mode: mode,
+    durationDays: duration,
+  );
+
+  if (!isCalendar) {
+    buffer.write(
+      'Desde el ${longDate(next.start)}, cada seguimiento durará $duration '
+      'días.',
+    );
+    return buffer.toString();
+  }
+
+  if (!next.isTransition) {
+    buffer.write(
+      'Desde el ${longDate(next.start)} tus seguimientos serán meses '
+      'calendario completos.',
+    );
+    return buffer.toString();
+  }
+
+  // The gap up to the 1st becomes a one-off bridge — name its exact dates.
+  final firstFullMonth = next.end.add(const Duration(days: 1));
+  buffer
+    ..write(
+      'Del ${longDate(next.start)} al ${longDate(next.end)} tendrás un '
+      'seguimiento de transición de ${next.durationDays} días, ',
+    )
+    ..write(
+      'y desde el ${longDate(firstFullMonth)} tus seguimientos serán meses '
+      'calendario completos.',
+    );
+  return buffer.toString();
+}
+
+// ---------------------------------------------------------------------------
+// Mode option
+// ---------------------------------------------------------------------------
+
+class _ModeOption extends StatelessWidget {
+  const _ModeOption({
+    required this.value,
+    required this.groupValue,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onChanged,
+  });
+
+  final String value;
+  final String groupValue;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final selected = value == groupValue;
+
+    return InkWell(
+      onTap: onChanged == null ? null : () => onChanged!(value),
+      borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+      child: Container(
+        padding: const EdgeInsets.all(BalviaTheme.spaceMd),
+        decoration: BoxDecoration(
+          color: selected
+              ? BalviaTheme.seed.withValues(alpha: 0.08)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(BalviaTheme.radiusMd),
+          border: Border.all(
+            color: selected
+                ? BalviaTheme.seed
+                : cs.outlineVariant.withValues(alpha: 0.6),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: selected ? BalviaTheme.seed : cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: BalviaTheme.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: BalviaTheme.bodyStyle(color: cs.onSurface).copyWith(
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              const Icon(Icons.check_circle, size: 20, color: BalviaTheme.seed),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -237,6 +453,8 @@ class _ActivePeriodCard extends StatelessWidget {
                   Text(
                     end == null
                         ? 'Sin seguimiento activo'
+                        : settings.usesCalendarMonths
+                        ? 'Termina el ${longDate(end)}'
                         : 'Termina el ${longDate(end)} · '
                               '${settings.trackingDurationDays} días',
                     style: BalviaTheme.captionStyle(color: cs.onSurfaceVariant),
@@ -256,15 +474,18 @@ class _ActivePeriodCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _DeferredChangeBanner extends StatelessWidget {
-  const _DeferredChangeBanner({required this.settings});
+  const _DeferredChangeBanner({
+    required this.settings,
+    required this.pendingMode,
+    required this.pendingDuration,
+  });
 
   final UserSettings settings;
+  final String pendingMode;
+  final int pendingDuration;
 
   @override
   Widget build(BuildContext context) {
-    final end = settings.activePeriodEndDate;
-    final next = settings.nextPeriodStartDate;
-
     return Container(
       padding: const EdgeInsets.all(BalviaTheme.spaceMd),
       decoration: BoxDecoration(
@@ -294,23 +515,13 @@ class _DeferredChangeBanner extends StatelessWidget {
                     text: 'Los cambios aplican al próximo seguimiento. ',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  if (end == null)
-                    const TextSpan(
-                      text:
-                          'Tu seguimiento actual no se modifica; la nueva '
-                          'duración se usa a partir del siguiente.',
-                    )
-                  else ...[
-                    const TextSpan(text: 'Tu seguimiento actual termina el '),
-                    TextSpan(
-                      text: longDate(end),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const TextSpan(
-                      text: ' y no se modifica. La nueva duración ',
-                    ),
-                    TextSpan(text: 'se usa desde el ${longDate(next!)}.'),
-                  ],
+                  TextSpan(
+                    text: _changeSummary(
+                      settings: settings,
+                      mode: pendingMode,
+                      duration: pendingDuration,
+                    ).replaceAll('\n\n', ' '),
+                  ),
                 ],
               ),
             ),

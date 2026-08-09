@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/amount_formatter.dart';
 import '../../core/api_error.dart';
+import '../../core/period_math.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../data/models/budget.dart';
@@ -270,7 +271,9 @@ class BudgetsScreen extends ConsumerWidget {
                 child: _InfoBanner(
                   text:
                       'Los presupuestos se copian automáticamente al siguiente '
-                      'seguimiento para que no tengas que configurarlos de nuevo.',
+                      'seguimiento para que no tengas que configurarlos de nuevo. '
+                      'Si el siguiente es más corto o más largo de lo normal, se '
+                      'ajustan a su duración.',
                 ),
               ),
             ),
@@ -421,9 +424,10 @@ class _PeriodChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    // Format "26 jun – 25 jul"
-    final start = _shortDate(period.startDate);
-    final end = _shortDate(period.endDate);
+    // "Agosto 2026" for a whole calendar month, otherwise "26 jun – 25 jul".
+    final label = period.isWholeCalendarMonth
+        ? monthTitle(DateTime.parse(period.startDate))
+        : '${_shortDate(period.startDate)} – ${_shortDate(period.endDate)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -433,7 +437,7 @@ class _PeriodChip extends StatelessWidget {
         border: Border.all(color: cs.outlineVariant),
       ),
       child: Text(
-        '$start – $end',
+        label,
         style: BalviaTheme.captionStyle(
           color: cs.onSurfaceVariant,
         ).copyWith(fontWeight: FontWeight.w600),

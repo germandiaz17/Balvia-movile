@@ -1,3 +1,5 @@
+import 'user_settings.dart' show kPeriodModeCalendar, kPeriodModeRolling;
+
 /// A tracking period (seguimiento). The backend manages its lifecycle;
 /// clients are read-only. Mirrors the contract object in
 /// docs/API_CONTRACT.md §Tracking periods.
@@ -10,6 +12,8 @@ class TrackingPeriod {
     required this.status,
     required this.configStartDay,
     required this.configDurationDays,
+    required this.configPeriodMode,
+    required this.isTransition,
     this.closedAt,
   });
 
@@ -28,10 +32,25 @@ class TrackingPeriod {
   final int configStartDay;
   final int configDurationDays;
 
+  /// The mode this period was generated under: [kPeriodModeRolling] or
+  /// [kPeriodModeCalendar]. Decides whether the UI titles it with a month name
+  /// or a date range.
+  final String configPeriodMode;
+
+  /// A one-off bridge created when the user switched period mode. Its length is
+  /// deliberately outside the usual 28–31 days, so it must be presented as a
+  /// transition rather than a normal period.
+  final bool isTransition;
+
   /// RFC3339 when closed; null when active.
   final DateTime? closedAt;
 
   bool get isActive => status == 'active';
+
+  /// True when this period is a whole calendar month, i.e. it can be named
+  /// "agosto" instead of shown as a range. A bridge never qualifies.
+  bool get isWholeCalendarMonth =>
+      configPeriodMode == kPeriodModeCalendar && !isTransition;
 
   /// Total duration in days (inclusive of both endpoints).
   int get durationDays {
@@ -64,6 +83,9 @@ class TrackingPeriod {
     status: json['status'] as String,
     configStartDay: json['config_start_day'] as int,
     configDurationDays: json['config_duration_days'] as int,
+    configPeriodMode:
+        json['config_period_mode'] as String? ?? kPeriodModeRolling,
+    isTransition: json['is_transition'] as bool? ?? false,
     closedAt: json['closed_at'] != null
         ? DateTime.parse(json['closed_at'] as String)
         : null,

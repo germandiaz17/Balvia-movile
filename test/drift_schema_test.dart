@@ -272,6 +272,38 @@ void main() {
       final active = await db.trackingPeriodsDao.getActive();
       expect(active, isNull);
     });
+
+    // v3 added both columns with defaults, so a row written without them — as
+    // every row pulled before the upgrade was — must still read back sanely.
+    test('v3 columns default to a plain rolling period', () async {
+      await db.trackingPeriodsDao.upsert(makePeriod('tp-legacy', 'active'));
+
+      final row = await db.trackingPeriodsDao.getActive();
+      expect(row!.configPeriodMode, 'rolling');
+      expect(row.isTransition, isFalse);
+    });
+
+    test('a calendar bridge round-trips through Drift', () async {
+      await db.trackingPeriodsDao.upsert(
+        dblib.TrackingPeriodsCompanion.insert(
+          id: 'tp-bridge',
+          userId: 'u-1',
+          sequenceNumber: 2,
+          startDate: '2026-08-04',
+          endDate: '2026-08-31',
+          status: 'active',
+          configStartDay: 4,
+          configDurationDays: 30,
+          updatedAt: '2026-08-04T12:00:00Z',
+          configPeriodMode: const drift.Value('calendar_month'),
+          isTransition: const drift.Value(true),
+        ),
+      );
+
+      final row = await db.trackingPeriodsDao.getActive();
+      expect(row!.configPeriodMode, 'calendar_month');
+      expect(row.isTransition, isTrue);
+    });
   });
 
   // ---------------------------------------------------------------------------

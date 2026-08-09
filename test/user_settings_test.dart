@@ -176,4 +176,47 @@ void main() {
       );
     });
   });
+
+  group('tracking period mode', () {
+    test('defaults to rolling when a legacy backend omits the field', () {
+      final s = UserSettings.fromJson(settingsJson());
+
+      expect(s.trackingPeriodMode, kPeriodModeRolling);
+      expect(s.usesCalendarMonths, isFalse);
+    });
+
+    test('parses calendar month', () {
+      final json = settingsJson()..['tracking_period_mode'] = 'calendar_month';
+      final s = UserSettings.fromJson(json);
+
+      expect(s.trackingPeriodMode, kPeriodModeCalendar);
+      expect(s.usesCalendarMonths, isTrue);
+    });
+
+    test('applies_to_next_period false survives the onboarding carve-out', () {
+      final json = settingsJson()..['applies_to_next_period'] = false;
+
+      expect(UserSettings.fromJson(json).appliesToNextPeriod, isFalse);
+    });
+
+    test('update sends only the mode when only the mode changed', () async {
+      final adapter = FakeHttpAdapter([
+        FakeResponse(
+          body: settingsJson()..['tracking_period_mode'] = 'calendar_month',
+        ),
+      ]);
+      final dio = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+        ..httpClientAdapter = adapter;
+
+      await UserSettingsRepository(
+        dio,
+      ).update(trackingPeriodMode: kPeriodModeCalendar);
+
+      final body = adapter.request.body!;
+      expect(body, {'tracking_period_mode': 'calendar_month'});
+      // Absent, not null — that is what COALESCE needs to leave columns alone.
+      expect(body.containsKey('tracking_duration_days'), isFalse);
+      expect(body.containsKey('tracking_start_day'), isFalse);
+    });
+  });
 }

@@ -11,6 +11,8 @@ import '../features/auth/splash_screen.dart';
 import '../features/budgets/budgets_screen.dart';
 import '../features/categories/categories_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/onboarding/onboarding_controller.dart';
+import '../features/onboarding/onboarding_screen.dart';
 import '../features/overlay/overlay_settings_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/recurring/recurring_transactions_screen.dart';
@@ -35,6 +37,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.onDispose(refresh.dispose);
   ref.listen(authControllerProvider, (_, _) => refresh.value++);
+  ref.listen(onboardingControllerProvider, (_, _) => refresh.value++);
 
   return GoRouter(
     initialLocation: '/',
@@ -44,6 +47,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final atAuth = loc == '/login' || loc == '/register';
       final atSplash = loc == '/';
+      final atOnboarding = loc == '/onboarding';
 
       if (status == AuthStatus.unknown) {
         return atSplash ? null : '/';
@@ -51,7 +55,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (status == AuthStatus.unauthenticated) {
         return atAuth ? null : '/login';
       }
-      // authenticated → send splash/auth screens to home tab.
+      // authenticated → the first-run wizard outranks every other destination,
+      // including deep links, until it is finished or skipped.
+      if (ref.read(onboardingControllerProvider)) {
+        return atOnboarding ? null : '/onboarding';
+      }
+      if (atOnboarding) return '/home';
+      // send splash/auth screens to home tab.
       if (atAuth || atSplash) return '/home';
       return null;
     },
@@ -59,6 +69,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (_, _) => const SplashScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
 
       // Push routes (displayed on top of the shell, no bottom nav).
       GoRoute(path: '/categories', builder: (_, _) => const CategoriesScreen()),

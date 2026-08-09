@@ -47,6 +47,16 @@ class TrackingPeriods extends Table {
   IntColumn get configStartDay => integer().named('config_start_day')();
   IntColumn get configDurationDays => integer().named('config_duration_days')();
 
+  // rolling | calendar_month. Rows written before v3 default to rolling.
+  TextColumn get configPeriodMode => text()
+      .named('config_period_mode')
+      .withDefault(const Constant('rolling'))();
+
+  // A one-off bridge created when the user switched period mode; its length is
+  // deliberately outside the usual 28-31 days.
+  BoolColumn get isTransition =>
+      boolean().named('is_transition').withDefault(const Constant(false))();
+
   // RFC3339 nullable — null when active.
   TextColumn get closedAt => text().named('closed_at').nullable()();
 
